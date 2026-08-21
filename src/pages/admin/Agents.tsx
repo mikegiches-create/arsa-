@@ -1,303 +1,207 @@
 import { useState } from 'react'
-import { Agent } from '../../types/index'
-import { FEATURED_AGENTS } from '../../components/data/constants'
+import { agentsApi, Agent } from '../../services/api'
+import { useApi } from '../../hooks/useApi'
+import {
+  PageLoader, ErrorBanner, EmptyState, Modal, ConfirmModal,
+  PageHeader, Btn, Field, inputCls, Pagination,
+} from '../../components/admin/ui'
+import ImageUpload from '../../components/admin/ImageUpload'
+import { imgFallback } from '../../utils/imgFallback'
+
+const EMPTY: Partial<Agent> = {
+  firstName: '', lastName: '', email: '', phone: '', avatar: '', bio: '', license: '',
+}
 
 export default function Agents() {
-  const [agents, setAgents] = useState<Agent[]>(
-    FEATURED_AGENTS.map((agent, i) => ({
-      id: String(agent.id),
-      name: agent.name,
-      title: agent.title,
-      properties: agent.properties,
-      image: agent.image,
-      phone: agent.phone,
-      rating: 4.5 + (i * 0.1),
-      createdAt: new Date(2024, 0, i + 1).toISOString(),
-      updatedAt: new Date(2024, 0, i + 1).toISOString(),
-    }))
-  )
+  const [page, setPage]         = useState(1)
+  const [search, setSearch]     = useState('')
   const [showForm, setShowForm] = useState(false)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
-  const [formData, setFormData] = useState<Partial<Agent>>({
-    name: '',
-    title: '',
-    properties: 0,
-    image: '',
-    phone: '',
-    rating: 0,
-  })
+  const [editing, setEditing]   = useState<Agent | null>(null)
+  const [deleting, setDeleting] = useState<Agent | null>(null)
+  const [form, setForm]         = useState<Partial<Agent>>(EMPTY)
+  const [saving, setSaving]     = useState(false)
+  const [formErr, setFormErr]   = useState('')
 
-  const handleAdd = () => {
-    setEditingId(null)
-    setFormData({
-      name: '',
-      title: '',
-      properties: 0,
-      image: '',
-      phone: '',
-      rating: 0,
-    })
-    setShowForm(true)
+  const { data, loading, error, refetch } = useApi(
+    () => agentsApi.list(page, 12, search), [page, search]
+  )
+
+  const openAdd  = () => { setEditing(null); setForm(EMPTY); setFormErr(''); setShowForm(true) }
+  const openEdit = (a: Agent) => { setEditing(a); setForm({ ...a }); setFormErr(''); setShowForm(true) }
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault(); setSaving(true); setFormErr('')
+    try {
+      editing ? await agentsApi.update(editing.id, form) : await agentsApi.create(form)
+      setShowForm(false); refetch()
+    } catch (err) {
+      setFormErr(err instanceof Error ? err.message : 'Save failed')
+    } finally { setSaving(false) }
   }
 
-  const handleEdit = (agent: Agent) => {
-    setEditingId(agent.id)
-    setFormData(agent)
-    setShowForm(true)
+  const handleDelete = async () => {
+    if (!deleting) return
+    try { await agentsApi.delete(deleting.id); setDeleting(null); refetch() } catch {}
   }
 
-  const handleSave = () => {
-    if (!formData.name || !formData.phone) {
-      alert('Please fill in all required fields')
-      return
-    }
-
-    if (editingId) {
-      setAgents(
-        agents.map((agent) =>
-          agent.id === editingId
-            ? {
-                ...agent,
-                ...formData,
-                updatedAt: new Date().toISOString(),
-              }
-            : agent
-        )
-      )
-    } else {
-      const newAgent: Agent = {
-        id: Date.now().toString(),
-        name: formData.name || '',
-        title: formData.title || '',
-        properties: formData.properties || 0,
-        image: formData.image || '',
-        phone: formData.phone || '',
-        rating: formData.rating || 0,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }
-      setAgents([...agents, newAgent])
-    }
-    setShowForm(false)
-  }
-
-  const handleDelete = (id: string) => {
-    setAgents(agents.filter((agent) => agent.id !== id))
-    setDeleteConfirm(null)
-  }
-
-  const renderStars = (rating: number) => {
-    return '⭐'.repeat(Math.round(rating))
-  }
+  const set = (k: keyof Agent, v: any) => setForm(f => ({ ...f, [k]: v }))
+  const total      = data?.pagination.total ?? 0
+  const totalPages = data?.pagination.totalPages ?? 1
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="font-display text-3xl text-[#111827] mb-2">Manage Agents</h2>
-          <p className="text-gray-600">Manage featured agents with profiles, properties sold, and ratings.</p>
-        </div>
-        <button
-          onClick={handleAdd}
-          className="bg-[#2d6a4f] text-white px-6 py-3 rounded-lg hover:bg-[#1b4332] transition-colors font-semibold"
-        >
-          + Add Agent
-        </button>
-      </div>
+      <PageHeader
+        title="Agents"
+        subtitle={`${total} agents`}
+        action={<Btn onClick={openAdd}>+ Add Agent</Btn>}
+      />
 
-      {/* Form Modal */}
+      {/* Search */}
+      <input
+        value={search}
+        onChange={e => { setSearch(e.target.value); setPage(1) }}
+        placeholder="Search agents…"
+        className="w-full sm:max-w-xs px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-[#2d6a4f] focus:ring-2 focus:ring-[#2d6a4f]/20"
+      />
+
+      {loading && <PageLoader />}
+      {error   && <ErrorBanner message={error} onRetry={refetch} />}
+
+      {!loading && !error && (
+        <>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {(data?.data ?? []).map(a => (
+              <div key={a.id} className="bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-md transition-shadow">
+                {/* Card header with avatar */}
+                <div className="h-32 bg-gradient-to-br from-[#2d6a4f] to-[#1b4332] flex items-center justify-center relative">
+                  {a.avatar ? (
+                    <img
+                      src={a.avatar}
+                      alt={a.firstName}
+                      className="w-20 h-20 rounded-full object-cover border-4 border-white/30"
+                      onError={imgFallback}
+                    />
+                  ) : (
+                    <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center text-white text-3xl font-display">
+                      {a.firstName[0]}
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-4">
+                  <h3 className="font-semibold text-[#111827]">{a.firstName} {a.lastName}</h3>
+                  <p className="text-xs text-gray-500 mb-0.5">{a.email}</p>
+                  <p className="text-xs text-gray-400 mb-3">{a.phone}</p>
+                  {a.license && (
+                    <span className="inline-block text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded font-medium mb-3">
+                      #{a.license}
+                    </span>
+                  )}
+                  <div className="flex gap-2">
+                    <Btn size="sm" variant="outline" onClick={() => openEdit(a)} className="flex-1">Edit</Btn>
+                    <Btn size="sm" variant="danger"  onClick={() => setDeleting(a)} className="flex-1">Del</Btn>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {(data?.data ?? []).length === 0 && (
+            <EmptyState icon="◉" title="No agents found" action={<Btn onClick={openAdd}>+ Add Agent</Btn>} />
+          )}
+
+          <Pagination page={page} totalPages={totalPages} onPage={setPage} />
+        </>
+      )}
+
+      {/* ── Add / Edit Modal ── */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl p-8 w-full max-w-md">
-            <h3 className="font-display text-2xl text-[#111827] mb-6">
-              {editingId ? 'Edit Agent' : 'Add New Agent'}
-            </h3>
+        <Modal title={editing ? 'Edit Agent' : 'Add Agent'} onClose={() => setShowForm(false)} size="lg">
+          <form onSubmit={handleSave} className="space-y-5">
+            {formErr && (
+              <div className="bg-red-50 text-red-700 text-sm px-4 py-2.5 rounded-lg font-medium">
+                {formErr}
+              </div>
+            )}
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-[#111827] mb-2">
-                  Agent Name *
-                </label>
+            {/* Avatar upload — full width at the top */}
+            <ImageUpload
+              label="Agent Photo"
+              value={form.avatar ?? ''}
+              onChange={url => set('avatar', url)}
+              shape="circle"
+              hint="Recommended: square image, at least 200×200 px"
+            />
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              <Field label="First Name">
                 <input
-                  type="text"
-                  value={formData.name || ''}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-[#2d6a4f]"
-                  placeholder="e.g., Sarah Johnson"
+                  className={inputCls}
+                  value={form.firstName ?? ''}
+                  onChange={e => set('firstName', e.target.value)}
+                  required
                 />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-[#111827] mb-2">
-                  Title
-                </label>
+              </Field>
+              <Field label="Last Name">
                 <input
-                  type="text"
-                  value={formData.title || ''}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-[#2d6a4f]"
-                  placeholder="e.g., Senior Agent"
+                  className={inputCls}
+                  value={form.lastName ?? ''}
+                  onChange={e => set('lastName', e.target.value)}
+                  required
                 />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-[#111827] mb-2">
-                  Phone *
-                </label>
+              </Field>
+              <Field label="Email">
                 <input
-                  type="tel"
-                  value={formData.phone || ''}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-[#2d6a4f]"
-                  placeholder="+1 (212) 555-0101"
+                  type="email"
+                  className={inputCls}
+                  value={form.email ?? ''}
+                  onChange={e => set('email', e.target.value)}
+                  required
                 />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-[#111827] mb-2">
-                    Properties Sold
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.properties || 0}
-                    onChange={(e) => setFormData({ ...formData, properties: parseInt(e.target.value) })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-[#2d6a4f]"
-                    placeholder="0"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-[#111827] mb-2">
-                    Rating (0-5)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="5"
-                    step="0.1"
-                    value={formData.rating || 0}
-                    onChange={(e) => setFormData({ ...formData, rating: parseFloat(e.target.value) })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-[#2d6a4f]"
-                    placeholder="0"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-[#111827] mb-2">
-                  Image URL
-                </label>
+              </Field>
+              <Field label="Phone">
                 <input
-                  type="url"
-                  value={formData.image || ''}
-                  onChange={(e) => setFormData({ ...formData, image: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-[#2d6a4f]"
-                  placeholder="https://..."
+                  className={inputCls}
+                  value={form.phone ?? ''}
+                  onChange={e => set('phone', e.target.value)}
+                  required
                 />
-              </div>
+              </Field>
+              <Field label="License #">
+                <input
+                  className={inputCls}
+                  value={form.license ?? ''}
+                  onChange={e => set('license', e.target.value)}
+                />
+              </Field>
+              <Field label="Bio" className="sm:col-span-2">
+                <textarea
+                  className={inputCls}
+                  rows={3}
+                  value={form.bio ?? ''}
+                  onChange={e => set('bio', e.target.value)}
+                />
+              </Field>
             </div>
 
-            <div className="flex gap-3 mt-8">
-              <button
-                onClick={() => setShowForm(false)}
-                className="flex-1 px-4 py-2 border border-gray-300 text-[#111827] rounded-lg hover:bg-gray-50 transition-colors font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSave}
-                className="flex-1 px-4 py-2 bg-[#2d6a4f] text-white rounded-lg hover:bg-[#1b4332] transition-colors font-medium"
-              >
-                Save Agent
-              </button>
+            <div className="flex gap-3 pt-1">
+              <Btn type="submit" disabled={saving}>
+                {saving ? 'Saving…' : editing ? 'Update Agent' : 'Create Agent'}
+              </Btn>
+              <Btn variant="ghost" onClick={() => setShowForm(false)}>Cancel</Btn>
             </div>
-          </div>
-        </div>
+          </form>
+        </Modal>
       )}
 
-      {/* Delete Confirmation Modal */}
-      {deleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-sm">
-            <h3 className="font-display text-xl text-[#111827] mb-4">Delete Agent</h3>
-            <p className="text-gray-600 mb-6">Are you sure you want to delete this agent? This action cannot be undone.</p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setDeleteConfirm(null)}
-                className="flex-1 px-4 py-2 border border-gray-300 text-[#111827] rounded-lg hover:bg-gray-50 transition-colors font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleDelete(deleteConfirm)}
-                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Agents Grid */}
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {agents.map((agent) => (
-          <div
-            key={agent.id}
-            className="bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-lg transition-shadow"
-          >
-            <img src={agent.image} alt={agent.name} className="w-full h-48 object-cover" />
-
-            <div className="p-6">
-              <h3 className="font-display text-lg text-[#111827] mb-1">{agent.name}</h3>
-              <p className="text-sm text-gray-500 mb-4">{agent.title}</p>
-
-              <div className="space-y-3 mb-4 pb-4 border-b border-gray-200">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Properties Sold</span>
-                  <span className="font-semibold text-[#2d6a4f]">{agent.properties}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Rating</span>
-                  <span className="font-semibold">{renderStars(agent.rating)} ({agent.rating.toFixed(1)})</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Phone</span>
-                  <span className="font-semibold text-[#111827]">{agent.phone}</span>
-                </div>
-              </div>
-
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleEdit(agent)}
-                  className="flex-1 px-3 py-2 border border-[#2d6a4f] text-[#2d6a4f] rounded-lg hover:bg-green-50 transition-colors font-medium text-sm"
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={() => setDeleteConfirm(agent.id)}
-                  className="flex-1 px-3 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors font-medium text-sm"
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {agents.length === 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl p-12 text-center">
-          <p className="text-gray-500 text-lg mb-4">No agents found</p>
-          <button
-            onClick={handleAdd}
-            className="text-[#2d6a4f] hover:text-[#1b4332] font-semibold"
-          >
-            Create the first agent
-          </button>
-        </div>
+      {/* ── Delete confirm ── */}
+      {deleting && (
+        <ConfirmModal
+          title="Delete Agent"
+          message={`Delete "${deleting.firstName} ${deleting.lastName}"? This cannot be undone.`}
+          onConfirm={handleDelete}
+          onCancel={() => setDeleting(null)}
+        />
       )}
     </div>
   )

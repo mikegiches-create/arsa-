@@ -1,20 +1,28 @@
+import { imgFallback } from '../../utils/imgFallback'
+import heroImg   from '../../assets/DG-West-Sitting.webp'
+import heroImg2  from '../../assets/img-scaled.jpg'
+
 export default function About() {
   return (
-    <section id="about" className="py-28 px-8 md:px-16 grid md:grid-cols-2 gap-16 items-center bg-[#f8faf9]">
+    <section id="about" className="py-24 px-6 md:px-16 grid md:grid-cols-2 gap-16 items-center bg-[#f8faf9]">
       {/* Image Section */}
       <div className="relative">
         <div className="aspect-[3/4] overflow-hidden bg-gray-100 rounded-xl">
           <img
-            src="https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=800&h=1066&fit=crop&auto=format"
+            src={heroImg}
             alt="Grand luxury villa interior"
             className="w-full h-full object-cover"
+            onError={imgFallback}
+            loading="lazy"
           />
         </div>
         <div className="absolute -bottom-8 -right-8 w-48 h-48 hidden md:block overflow-hidden rounded-xl border-4 border-[#f8faf9] shadow-lg">
           <img
-            src="https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=300&h=300&fit=crop&auto=format"
-            alt="Luxury estate pool"
+            src={heroImg2}
+            alt="Luxury estate exterior"
             className="w-full h-full object-cover"
+            onError={imgFallback}
+            loading="lazy"
           />
         </div>
         <div className="absolute -top-8 -left-8 w-32 h-32 border-t-2 border-l-2 border-[#2d6a4f]/30 hidden md:block rounded-tl-xl" />

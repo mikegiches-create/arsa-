@@ -33,11 +33,23 @@ export default defineConfig(({ mode }) => {
       host: '0.0.0.0',
       port: parseInt(process.env.PORT || '8443'),
       strictPort: true,
+      allowedHosts: [
+        'all',
+        '.onrender.com',
+        'arsa-8dy1.onrender.com',
+        'localhost',
+      ],
       watch: { ignored: ['**/.figma/**'] },
     },
     preview: {
       host: '0.0.0.0',
-      port: parseInt(process.env.PORT || '8443'),
+      port: parseInt(process.env.PORT || process.env.PORT || '4173'),
+      allowedHosts: [
+        'all',
+        '.onrender.com',
+        'arsa-8dy1.onrender.com',
+        'localhost',
+      ],
     },
   }
 })

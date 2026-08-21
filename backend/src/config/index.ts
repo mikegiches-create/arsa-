@@ -11,7 +11,7 @@ export const config = {
 
   // Database
   database: {
-    url: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/arsa_realestate',
+    url: process.env.DATABASE_URL || 'mysql://root:password@localhost:3306/arsa_realestate',
   },
 
   // JWT

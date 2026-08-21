@@ -82,7 +82,5 @@ export const paginationValidator = [
     .withMessage('Limit must be between 1 and 100'),
   query('search')
     .optional()
-    .trim()
-    .isLength({ min: 1 })
-    .withMessage('Search term must not be empty'),
+    .trim(),
 ]

@@ -1,33 +1,40 @@
 import { Response } from 'express'
+import { v4 as uuidv4 } from 'uuid'
 import { AuthRequest } from '../middleware/auth'
 import { sendSuccess, sendPaginated } from '../utils/response'
 import { NotFoundError, ValidationError, AuthorizationError, ConflictError } from '../utils/errors'
-import prisma from '../lib/prisma'
+import { query, queryOne, execute } from '../lib/db'
 import logger from '../utils/logger'
+
+const mapLocation = (row: any) => ({
+  id: row.id,
+  name: row.name,
+  slug: row.slug,
+  description: row.description,
+  image: row.image,
+  propertyCount: row.property_count ?? undefined,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+})
 
 export const createLocation = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    if (req.user?.role !== 'ADMIN') {
-      throw new AuthorizationError('Only admins can create locations')
-    }
+    if (req.user?.role !== 'ADMIN') throw new AuthorizationError('Only admins can create locations')
 
     const { name, slug, description, image } = req.body
 
-    const existing = await prisma.location.findUnique({
-      where: { slug },
-    })
+    const existing = await queryOne('SELECT id FROM locations WHERE slug = ?', [slug])
+    if (existing) throw new ConflictError('Location with this slug already exists')
 
-    if (existing) {
-      throw new ConflictError('Location with this slug already exists')
-    }
+    const id = uuidv4()
+    await execute(
+      'INSERT INTO locations (id, name, slug, description, image) VALUES (?, ?, ?, ?, ?)',
+      [id, name, slug, description ?? null, image ?? null]
+    )
 
-    const location = await prisma.location.create({
-      data: { name, slug, description, image },
-    })
-
-    logger.info(`Location created: ${location.id} by ${req.user.email}`)
-
-    sendSuccess(res, location, 'Location created successfully', 201)
+    const location = await queryOne<any>('SELECT * FROM locations WHERE id = ?', [id])
+    logger.info(`Location created: ${id} by ${req.user.email}`)
+    sendSuccess(res, mapLocation(location), 'Location created successfully', 201)
   } catch (error) {
     logger.error('Create location error:', error)
     if (error instanceof AuthorizationError || error instanceof ConflictError) {
@@ -40,44 +47,38 @@ export const createLocation = async (req: AuthRequest, res: Response): Promise<v
 
 export const getLocations = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const page = parseInt(req.query.page as string) || 1
+    const page  = parseInt(req.query.page  as string) || 1
     const limit = parseInt(req.query.limit as string) || 10
-    const search = req.query.search as string
+    const search = (req.query.search as string) || ''
+    const skip  = (page - 1) * limit
 
-    const skip = (page - 1) * limit
+    const conditions: string[] = []
+    const params: any[] = []
 
-    const where = search
-      ? {
-          OR: [
-            { name: { contains: search, mode: 'insensitive' } },
-            { description: { contains: search, mode: 'insensitive' } },
-          ],
-        }
-      : {}
+    if (search) {
+      conditions.push('(lo.name LIKE ? OR lo.description LIKE ?)')
+      const like = `%${search}%`
+      params.push(like, like)
+    }
 
-    const [locations, total] = await Promise.all([
-      prisma.location.findMany({
-        where,
-        include: {
-          _count: {
-            select: { properties: true },
-          },
-        },
-        skip,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
-      }),
-      prisma.location.count({ where }),
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+
+    const [rows, countRows] = await Promise.all([
+      query<any>(
+        `SELECT lo.*, COUNT(p.id) AS property_count
+         FROM locations lo
+         LEFT JOIN properties p ON p.location_id = lo.id AND p.deleted_at IS NULL
+         ${where}
+         GROUP BY lo.id
+         ORDER BY lo.created_at DESC
+         LIMIT ? OFFSET ?`,
+        [...params, limit, skip]
+      ),
+      query<any>(`SELECT COUNT(*) AS total FROM locations lo ${where}`, params),
     ])
 
-    sendPaginated(
-      res,
-      locations,
-      total,
-      page,
-      limit,
-      'Locations retrieved successfully'
-    )
+    const total = countRows[0]?.total ?? 0
+    sendPaginated(res, rows.map(mapLocation), total, page, limit, 'Locations retrieved successfully')
   } catch (error) {
     logger.error('Get locations error:', error)
     res.status(500).json({ success: false, message: 'Failed to retrieve locations' })
@@ -88,26 +89,15 @@ export const getLocationById = async (req: AuthRequest, res: Response): Promise<
   try {
     const { id } = req.params
 
-    const location = await prisma.location.findUnique({
-      where: { id },
-      include: {
-        properties: {
-          select: {
-            id: true,
-            title: true,
-            price: true,
-            thumbnail: true,
-          },
-          take: 10,
-        },
-      },
-    })
+    const location = await queryOne<any>('SELECT * FROM locations WHERE id = ?', [id])
+    if (!location) throw new NotFoundError('Location')
 
-    if (!location) {
-      throw new NotFoundError('Location')
-    }
+    const properties = await query<any>(
+      'SELECT id, title, price, thumbnail FROM properties WHERE location_id = ? AND deleted_at IS NULL LIMIT 10',
+      [id]
+    )
 
-    sendSuccess(res, location, 'Location retrieved successfully')
+    sendSuccess(res, { ...mapLocation(location), properties }, 'Location retrieved successfully')
   } catch (error) {
     logger.error('Get location by ID error:', error)
     if (error instanceof NotFoundError) {
@@ -120,43 +110,35 @@ export const getLocationById = async (req: AuthRequest, res: Response): Promise<
 
 export const updateLocation = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    if (req.user?.role !== 'ADMIN') {
-      throw new AuthorizationError('Only admins can update locations')
-    }
+    if (req.user?.role !== 'ADMIN') throw new AuthorizationError('Only admins can update locations')
 
     const { id } = req.params
+    const location = await queryOne<any>('SELECT * FROM locations WHERE id = ?', [id])
+    if (!location) throw new NotFoundError('Location')
+
     const { name, slug, description, image } = req.body
 
-    const location = await prisma.location.findUnique({
-      where: { id },
-    })
-
-    if (!location) {
-      throw new NotFoundError('Location')
-    }
-
     if (slug && slug !== location.slug) {
-      const existing = await prisma.location.findUnique({
-        where: { slug },
-      })
-      if (existing) {
-        throw new ConflictError('Location with this slug already exists')
-      }
+      const dup = await queryOne('SELECT id FROM locations WHERE slug = ?', [slug])
+      if (dup) throw new ConflictError('Location with this slug already exists')
     }
 
-    const updated = await prisma.location.update({
-      where: { id },
-      data: {
-        ...(name && { name }),
-        ...(slug && { slug }),
-        ...(description && { description }),
-        ...(image && { image }),
-      },
-    })
+    const sets: string[] = []
+    const params: any[] = []
 
+    if (name        !== undefined) { sets.push('name = ?');        params.push(name) }
+    if (slug        !== undefined) { sets.push('slug = ?');        params.push(slug) }
+    if (description !== undefined) { sets.push('description = ?'); params.push(description) }
+    if (image       !== undefined) { sets.push('image = ?');       params.push(image) }
+
+    if (sets.length > 0) {
+      params.push(id)
+      await execute(`UPDATE locations SET ${sets.join(', ')} WHERE id = ?`, params)
+    }
+
+    const updated = await queryOne<any>('SELECT * FROM locations WHERE id = ?', [id])
     logger.info(`Location updated: ${id} by ${req.user.email}`)
-
-    sendSuccess(res, updated, 'Location updated successfully')
+    sendSuccess(res, mapLocation(updated), 'Location updated successfully')
   } catch (error) {
     logger.error('Update location error:', error)
     if (error instanceof AuthorizationError || error instanceof NotFoundError || error instanceof ConflictError) {
@@ -169,31 +151,18 @@ export const updateLocation = async (req: AuthRequest, res: Response): Promise<v
 
 export const deleteLocation = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    if (req.user?.role !== 'ADMIN') {
-      throw new AuthorizationError('Only admins can delete locations')
-    }
+    if (req.user?.role !== 'ADMIN') throw new AuthorizationError('Only admins can delete locations')
 
     const { id } = req.params
+    const location = await queryOne<any>(
+      'SELECT lo.id, COUNT(p.id) AS property_count FROM locations lo LEFT JOIN properties p ON p.location_id = lo.id AND p.deleted_at IS NULL WHERE lo.id = ? GROUP BY lo.id',
+      [id]
+    )
+    if (!location) throw new NotFoundError('Location')
+    if (location.property_count > 0) throw new ValidationError('Cannot delete location with existing properties')
 
-    const location = await prisma.location.findUnique({
-      where: { id },
-      include: { _count: { select: { properties: true } } },
-    })
-
-    if (!location) {
-      throw new NotFoundError('Location')
-    }
-
-    if (location._count.properties > 0) {
-      throw new ValidationError('Cannot delete location with existing properties')
-    }
-
-    await prisma.location.delete({
-      where: { id },
-    })
-
+    await execute('DELETE FROM locations WHERE id = ?', [id])
     logger.info(`Location deleted: ${id} by ${req.user.email}`)
-
     sendSuccess(res, {}, 'Location deleted successfully')
   } catch (error) {
     logger.error('Delete location error:', error)

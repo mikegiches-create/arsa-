@@ -1,20 +1,42 @@
+# ─── Dependencies ────────────────────────────────────────────────────────────
 node_modules/
+backend/node_modules/
+
+# ─── Build outputs ───────────────────────────────────────────────────────────
+dist/
+build/
+backend/dist/
+
+# ─── Environment files (never commit secrets) ────────────────────────────────
 .env
 .env.local
 .env.*.local
-dist/
-build/
+backend/.env
+# .env.example files are intentionally kept — they document required vars
+
+# ─── Uploads (ephemeral on Render — use Cloudinary for production) ────────────
+backend/public/uploads/*
+!backend/public/uploads/.gitkeep
+
+# ─── Logs ────────────────────────────────────────────────────────────────────
 *.log
+logs/
+backend/logs/
+
+# ─── OS / Editor ─────────────────────────────────────────────────────────────
 .DS_Store
+Thumbs.db
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+
+# ─── Cache ───────────────────────────────────────────────────────────────────
 .cache/
 .eslintcache
+.tsbuildinfo
+backend/.tsbuildinfo
+
+# ─── Test coverage ───────────────────────────────────────────────────────────
 coverage/
-.next/
-out/
-backend/node_modules/
-backend/dist/

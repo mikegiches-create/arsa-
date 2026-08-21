@@ -1,11 +1,16 @@
+import { imgFallback } from '../../utils/imgFallback'
+import ctaImg from '../../assets/rooftop-DG-West-scaled.webp'
+
 export default function CTABanner() {
   return (
-    <div className="relative h-80 md:h-96 overflow-hidden">
+    <div className="relative h-72 md:h-96 overflow-hidden">
       <img
-        src="https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1800&h=600&fit=crop&auto=format"
-        alt="Estate aerial view"
+        src={ctaImg}
+        alt="Estate rooftop view"
         className="w-full h-full object-cover"
         style={{ objectPosition: 'center 40%' }}
+        onError={imgFallback}
+        loading="lazy"
       />
       <div className="absolute inset-0 bg-[#1b4332]/75" />
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8">

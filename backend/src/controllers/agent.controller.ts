@@ -1,33 +1,43 @@
 import { Response } from 'express'
+import { v4 as uuidv4 } from 'uuid'
 import { AuthRequest } from '../middleware/auth'
 import { sendSuccess, sendPaginated } from '../utils/response'
 import { NotFoundError, ValidationError, AuthorizationError, ConflictError } from '../utils/errors'
-import prisma from '../lib/prisma'
+import { query, queryOne, execute } from '../lib/db'
 import logger from '../utils/logger'
+
+const mapAgent = (row: any) => ({
+  id: row.id,
+  firstName: row.first_name,
+  lastName: row.last_name,
+  email: row.email,
+  phone: row.phone,
+  avatar: row.avatar,
+  bio: row.bio,
+  license: row.license,
+  propertyCount: row.property_count ?? undefined,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+})
 
 export const createAgent = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    if (req.user?.role !== 'ADMIN') {
-      throw new AuthorizationError('Only admins can create agents')
-    }
+    if (req.user?.role !== 'ADMIN') throw new AuthorizationError('Only admins can create agents')
 
     const { firstName, lastName, email, phone, avatar, bio, license } = req.body
 
-    const existing = await prisma.agent.findUnique({
-      where: { email },
-    })
+    const existing = await queryOne('SELECT id FROM agents WHERE email = ?', [email])
+    if (existing) throw new ConflictError('Agent with this email already exists')
 
-    if (existing) {
-      throw new ConflictError('Agent with this email already exists')
-    }
+    const id = uuidv4()
+    await execute(
+      'INSERT INTO agents (id, first_name, last_name, email, phone, avatar, bio, license) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [id, firstName, lastName, email, phone, avatar ?? null, bio ?? null, license ?? null]
+    )
 
-    const agent = await prisma.agent.create({
-      data: { firstName, lastName, email, phone, avatar, bio, license },
-    })
-
-    logger.info(`Agent created: ${agent.id} by ${req.user.email}`)
-
-    sendSuccess(res, agent, 'Agent created successfully', 201)
+    const agent = await queryOne<any>('SELECT * FROM agents WHERE id = ?', [id])
+    logger.info(`Agent created: ${id} by ${req.user.email}`)
+    sendSuccess(res, mapAgent(agent), 'Agent created successfully', 201)
   } catch (error) {
     logger.error('Create agent error:', error)
     if (error instanceof AuthorizationError || error instanceof ConflictError) {
@@ -40,45 +50,38 @@ export const createAgent = async (req: AuthRequest, res: Response): Promise<void
 
 export const getAgents = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const page = parseInt(req.query.page as string) || 1
+    const page  = parseInt(req.query.page  as string) || 1
     const limit = parseInt(req.query.limit as string) || 10
-    const search = req.query.search as string
+    const search = (req.query.search as string) || ''
+    const skip  = (page - 1) * limit
 
-    const skip = (page - 1) * limit
+    const conditions: string[] = ['a.deleted_at IS NULL']
+    const params: any[] = []
 
-    const where = search
-      ? {
-          OR: [
-            { firstName: { contains: search, mode: 'insensitive' } },
-            { lastName: { contains: search, mode: 'insensitive' } },
-            { email: { contains: search, mode: 'insensitive' } },
-          ],
-        }
-      : {}
+    if (search) {
+      conditions.push('(a.first_name LIKE ? OR a.last_name LIKE ? OR a.email LIKE ?)')
+      const like = `%${search}%`
+      params.push(like, like, like)
+    }
 
-    const [agents, total] = await Promise.all([
-      prisma.agent.findMany({
-        where,
-        include: {
-          _count: {
-            select: { properties: true },
-          },
-        },
-        skip,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
-      }),
-      prisma.agent.count({ where }),
+    const where = `WHERE ${conditions.join(' AND ')}`
+
+    const [rows, countRows] = await Promise.all([
+      query<any>(
+        `SELECT a.*, COUNT(p.id) AS property_count
+         FROM agents a
+         LEFT JOIN properties p ON p.agent_id = a.id AND p.deleted_at IS NULL
+         ${where}
+         GROUP BY a.id
+         ORDER BY a.created_at DESC
+         LIMIT ? OFFSET ?`,
+        [...params, limit, skip]
+      ),
+      query<any>(`SELECT COUNT(*) AS total FROM agents a ${where}`, params),
     ])
 
-    sendPaginated(
-      res,
-      agents,
-      total,
-      page,
-      limit,
-      'Agents retrieved successfully'
-    )
+    const total = countRows[0]?.total ?? 0
+    sendPaginated(res, rows.map(mapAgent), total, page, limit, 'Agents retrieved successfully')
   } catch (error) {
     logger.error('Get agents error:', error)
     res.status(500).json({ success: false, message: 'Failed to retrieve agents' })
@@ -89,26 +92,17 @@ export const getAgentById = async (req: AuthRequest, res: Response): Promise<voi
   try {
     const { id } = req.params
 
-    const agent = await prisma.agent.findUnique({
-      where: { id },
-      include: {
-        properties: {
-          select: {
-            id: true,
-            title: true,
-            price: true,
-            thumbnail: true,
-          },
-          take: 10,
-        },
-      },
-    })
+    const agent = await queryOne<any>(
+      'SELECT * FROM agents WHERE id = ? AND deleted_at IS NULL', [id]
+    )
+    if (!agent) throw new NotFoundError('Agent')
 
-    if (!agent) {
-      throw new NotFoundError('Agent')
-    }
+    const properties = await query<any>(
+      'SELECT id, title, price, thumbnail FROM properties WHERE agent_id = ? AND deleted_at IS NULL LIMIT 10',
+      [id]
+    )
 
-    sendSuccess(res, agent, 'Agent retrieved successfully')
+    sendSuccess(res, { ...mapAgent(agent), properties }, 'Agent retrieved successfully')
   } catch (error) {
     logger.error('Get agent by ID error:', error)
     if (error instanceof NotFoundError) {
@@ -121,46 +115,38 @@ export const getAgentById = async (req: AuthRequest, res: Response): Promise<voi
 
 export const updateAgent = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    if (req.user?.role !== 'ADMIN') {
-      throw new AuthorizationError('Only admins can update agents')
-    }
+    if (req.user?.role !== 'ADMIN') throw new AuthorizationError('Only admins can update agents')
 
     const { id } = req.params
+    const agent = await queryOne<any>('SELECT * FROM agents WHERE id = ? AND deleted_at IS NULL', [id])
+    if (!agent) throw new NotFoundError('Agent')
+
     const { firstName, lastName, email, phone, avatar, bio, license } = req.body
 
-    const agent = await prisma.agent.findUnique({
-      where: { id },
-    })
-
-    if (!agent) {
-      throw new NotFoundError('Agent')
-    }
-
     if (email && email !== agent.email) {
-      const existing = await prisma.agent.findUnique({
-        where: { email },
-      })
-      if (existing) {
-        throw new ConflictError('Agent with this email already exists')
-      }
+      const dup = await queryOne('SELECT id FROM agents WHERE email = ?', [email])
+      if (dup) throw new ConflictError('Agent with this email already exists')
     }
 
-    const updated = await prisma.agent.update({
-      where: { id },
-      data: {
-        ...(firstName && { firstName }),
-        ...(lastName && { lastName }),
-        ...(email && { email }),
-        ...(phone && { phone }),
-        ...(avatar && { avatar }),
-        ...(bio && { bio }),
-        ...(license && { license }),
-      },
-    })
+    const sets: string[] = []
+    const params: any[] = []
 
+    if (firstName !== undefined) { sets.push('first_name = ?'); params.push(firstName) }
+    if (lastName  !== undefined) { sets.push('last_name = ?');  params.push(lastName) }
+    if (email     !== undefined) { sets.push('email = ?');      params.push(email) }
+    if (phone     !== undefined) { sets.push('phone = ?');      params.push(phone) }
+    if (avatar    !== undefined) { sets.push('avatar = ?');     params.push(avatar) }
+    if (bio       !== undefined) { sets.push('bio = ?');        params.push(bio) }
+    if (license   !== undefined) { sets.push('license = ?');    params.push(license) }
+
+    if (sets.length > 0) {
+      params.push(id)
+      await execute(`UPDATE agents SET ${sets.join(', ')} WHERE id = ?`, params)
+    }
+
+    const updated = await queryOne<any>('SELECT * FROM agents WHERE id = ?', [id])
     logger.info(`Agent updated: ${id} by ${req.user.email}`)
-
-    sendSuccess(res, updated, 'Agent updated successfully')
+    sendSuccess(res, mapAgent(updated), 'Agent updated successfully')
   } catch (error) {
     logger.error('Update agent error:', error)
     if (error instanceof AuthorizationError || error instanceof NotFoundError || error instanceof ConflictError) {
@@ -173,28 +159,14 @@ export const updateAgent = async (req: AuthRequest, res: Response): Promise<void
 
 export const deleteAgent = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    if (req.user?.role !== 'ADMIN') {
-      throw new AuthorizationError('Only admins can delete agents')
-    }
+    if (req.user?.role !== 'ADMIN') throw new AuthorizationError('Only admins can delete agents')
 
     const { id } = req.params
+    const agent = await queryOne('SELECT id FROM agents WHERE id = ? AND deleted_at IS NULL', [id])
+    if (!agent) throw new NotFoundError('Agent')
 
-    const agent = await prisma.agent.findUnique({
-      where: { id },
-      include: { _count: { select: { properties: true } } },
-    })
-
-    if (!agent) {
-      throw new NotFoundError('Agent')
-    }
-
-    await prisma.agent.update({
-      where: { id },
-      data: { deletedAt: new Date() },
-    })
-
+    await execute('UPDATE agents SET deleted_at = NOW() WHERE id = ?', [id])
     logger.info(`Agent deleted: ${id} by ${req.user.email}`)
-
     sendSuccess(res, {}, 'Agent deleted successfully')
   } catch (error) {
     logger.error('Delete agent error:', error)

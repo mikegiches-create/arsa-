@@ -1,283 +1,160 @@
 import { useState } from 'react'
-import { Inquiry } from '../../types/index'
+import { messagesApi, Message } from '../../services/api'
+import { useApi } from '../../hooks/useApi'
+import {
+  PageLoader, ErrorBanner, EmptyState, Modal, ConfirmModal,
+  PageHeader, Table, Btn, StatusBadge, Pagination,
+} from '../../components/admin/ui'
+
+const STATUSES = ['', 'UNREAD', 'READ', 'REPLIED', 'ARCHIVED']
 
 export default function Messages() {
-  const [messages, setMessages] = useState<Inquiry[]>([
-    {
-      id: '1',
-      name: 'Sarah Johnson',
-      email: 'sarah@example.com',
-      message: 'I am interested in the luxury penthouse in Manhattan. Can you provide more details?',
-      status: 'new',
-      createdAt: new Date(2024, 4, 20, 10, 30).toISOString(),
-    },
-    {
-      id: '2',
-      name: 'Michael Chen',
-      email: 'michael@example.com',
-      message: 'Looking for investment properties in Miami area',
-      status: 'responded',
-      createdAt: new Date(2024, 4, 19, 14, 15).toISOString(),
-      respondedAt: new Date(2024, 4, 19, 16, 45).toISOString(),
-    },
-    {
-      id: '3',
-      name: 'Emma Rodriguez',
-      email: 'emma@example.com',
-      message: 'I need assistance with selling my property',
-      status: 'resolved',
-      createdAt: new Date(2024, 4, 18, 9, 0).toISOString(),
-      respondedAt: new Date(2024, 4, 18, 11, 30).toISOString(),
-    },
-  ])
-  const [selectedMessage, setSelectedMessage] = useState<string | null>(null)
-  const [replyText, setReplyText] = useState('')
-  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+  const [page, setPage]         = useState(1)
+  const [filter, setFilter]     = useState('')
+  const [viewing, setViewing]   = useState<Message | null>(null)
+  const [deleting, setDeleting] = useState<Message | null>(null)
 
-  const handleStatusChange = (id: string, newStatus: 'new' | 'responded' | 'resolved') => {
-    setMessages(
-      messages.map((msg) =>
-        msg.id === id
-          ? {
-              ...msg,
-              status: newStatus,
-              respondedAt:
-                newStatus === 'responded' || newStatus === 'resolved'
-                  ? msg.respondedAt || new Date().toISOString()
-                  : undefined,
-            }
-          : msg
-      )
-    )
-  }
+  const { data, loading, error, refetch } = useApi(
+    () => messagesApi.list(page, 15, filter), [page, filter]
+  )
 
-  const handleSendReply = (messageId: string) => {
-    if (!replyText.trim()) {
-      alert('Please write a reply')
-      return
-    }
-
-    handleStatusChange(messageId, 'responded')
-    setReplyText('')
-    setSelectedMessage(null)
-  }
-
-  const handleDelete = (id: string) => {
-    setMessages(messages.filter((msg) => msg.id !== id))
-    setDeleteConfirm(null)
-    if (selectedMessage === id) {
-      setSelectedMessage(null)
+  const handleView = async (m: Message) => {
+    setViewing(m)
+    if (m.status === 'UNREAD') {
+      try { await messagesApi.updateStatus(m.id, 'READ'); refetch() } catch {}
     }
   }
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'new':
-        return 'bg-blue-100 text-blue-700'
-      case 'responded':
-        return 'bg-yellow-100 text-yellow-700'
-      case 'resolved':
-        return 'bg-green-100 text-green-700'
-      default:
-        return 'bg-gray-100 text-gray-700'
-    }
+  const handleStatus = async (m: Message, status: string) => {
+    try { await messagesApi.updateStatus(m.id, status); refetch() } catch {}
   }
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
+  const handleDelete = async () => {
+    if (!deleting) return
+    try { await messagesApi.delete(deleting.id); setDeleting(null); refetch() } catch {}
   }
 
-  const selectedMsg = messages.find((m) => m.id === selectedMessage)
-  const newMessagesCount = messages.filter((m) => m.status === 'new').length
+  const total = data?.pagination.total ?? 0
+  const totalPages = data?.pagination.totalPages ?? 1
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div>
-        <h2 className="font-display text-3xl text-[#111827] mb-2">Manage Messages</h2>
-        <p className="text-gray-600">
-          Manage contact form submissions and inquiries
-          {newMessagesCount > 0 && (
-            <span className="ml-2 inline-block px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm font-semibold">
-              {newMessagesCount} new
-            </span>
-          )}
-        </p>
+      <PageHeader title="Messages" subtitle={`${total} messages`} />
+
+      {/* Filter tabs */}
+      <div className="flex flex-wrap gap-2">
+        {STATUSES.map(s => (
+          <button
+            key={s}
+            onClick={() => { setFilter(s); setPage(1) }}
+            className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+              filter === s
+                ? 'bg-[#2d6a4f] text-white'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            {s || 'All'}
+          </button>
+        ))}
       </div>
 
-      <div className="grid md:grid-cols-3 gap-6">
-        {/* Messages List */}
-        <div className="md:col-span-1">
-          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="font-semibold text-[#111827]">Messages</h3>
-            </div>
+      {loading && <PageLoader />}
+      {error   && <ErrorBanner message={error} onRetry={refetch} />}
 
-            <div className="divide-y divide-gray-200 max-h-96 overflow-y-auto">
-              {messages.length === 0 ? (
-                <div className="p-6 text-center text-gray-500">
-                  <p>No messages</p>
-                </div>
-              ) : (
-                messages.map((msg) => (
-                  <button
-                    key={msg.id}
-                    onClick={() => setSelectedMessage(msg.id)}
-                    className={`w-full text-left p-4 hover:bg-gray-50 transition-colors border-l-4 ${
-                      selectedMessage === msg.id
-                        ? 'border-[#2d6a4f] bg-green-50'
-                        : msg.status === 'new'
-                        ? 'border-blue-500'
-                        : msg.status === 'responded'
-                        ? 'border-yellow-500'
-                        : 'border-green-500'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="font-semibold text-[#111827] truncate">{msg.name}</div>
-                      <span className={`text-xs font-semibold px-2 py-1 rounded whitespace-nowrap ml-2 ${getStatusColor(msg.status)}`}>
-                        {msg.status}
-                      </span>
-                    </div>
-                    <p className="text-sm text-gray-600 truncate">{msg.email}</p>
-                    <p className="text-xs text-gray-500 mt-2">{formatDate(msg.createdAt)}</p>
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Message Detail */}
-        <div className="md:col-span-2">
-          {selectedMsg ? (
-            <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-6">
-              {/* Message Header */}
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="font-display text-xl text-[#111827]">{selectedMsg.name}</h3>
-                    <a
-                      href={`mailto:${selectedMsg.email}`}
-                      className="text-[#2d6a4f] hover:text-[#1b4332] font-medium"
+      {!loading && !error && (
+        <>
+          <Table headers={['From', 'Subject', 'Property', 'Status', 'Date', 'Actions']}>
+            {(data?.data ?? []).map(m => (
+              <tr
+                key={m.id}
+                className={`hover:bg-gray-50 transition-colors cursor-pointer ${m.status === 'UNREAD' ? 'font-semibold' : ''}`}
+                onClick={() => handleView(m)}
+              >
+                <td className="px-5 py-3.5">
+                  <p className="text-sm text-[#111827]">{m.name}</p>
+                  <p className="text-xs text-gray-400">{m.email}</p>
+                </td>
+                <td className="px-5 py-3.5 text-sm text-gray-700 max-w-[200px] truncate">{m.subject}</td>
+                <td className="px-5 py-3.5 text-xs text-gray-400">{m.property?.title ?? '—'}</td>
+                <td className="px-5 py-3.5"><StatusBadge status={m.status} /></td>
+                <td className="px-5 py-3.5 text-xs text-gray-400">{new Date(m.createdAt).toLocaleDateString()}</td>
+                <td className="px-5 py-3.5" onClick={e => e.stopPropagation()}>
+                  <div className="flex gap-2">
+                    <select
+                      value={m.status}
+                      onChange={e => handleStatus(m, e.target.value)}
+                      className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:border-[#2d6a4f]"
                     >
-                      {selectedMsg.email}
-                    </a>
+                      {['UNREAD','READ','REPLIED','ARCHIVED'].map(s => <option key={s}>{s}</option>)}
+                    </select>
+                    <Btn size="sm" variant="danger" onClick={() => setDeleting(m)}>Del</Btn>
                   </div>
-                  <span className={`px-3 py-1 rounded-full text-sm font-semibold ${getStatusColor(selectedMsg.status)}`}>
-                    {selectedMsg.status}
-                  </span>
-                </div>
-                <p className="text-sm text-gray-500">{formatDate(selectedMsg.createdAt)}</p>
-              </div>
+                </td>
+              </tr>
+            ))}
+          </Table>
 
-              {/* Message Content */}
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                <p className="text-gray-700 whitespace-pre-wrap">{selectedMsg.message}</p>
-              </div>
-
-              {/* Status Buttons */}
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleStatusChange(selectedMsg.id, 'new')}
-                  className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
-                    selectedMsg.status === 'new'
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'border border-blue-300 text-blue-600 hover:bg-blue-50'
-                  }`}
-                >
-                  Mark New
-                </button>
-                <button
-                  onClick={() => handleStatusChange(selectedMsg.id, 'responded')}
-                  className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
-                    selectedMsg.status === 'responded'
-                      ? 'bg-yellow-100 text-yellow-700'
-                      : 'border border-yellow-300 text-yellow-600 hover:bg-yellow-50'
-                  }`}
-                >
-                  Mark Responded
-                </button>
-                <button
-                  onClick={() => handleStatusChange(selectedMsg.id, 'resolved')}
-                  className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
-                    selectedMsg.status === 'resolved'
-                      ? 'bg-green-100 text-green-700'
-                      : 'border border-green-300 text-green-600 hover:bg-green-50'
-                  }`}
-                >
-                  Mark Resolved
-                </button>
-              </div>
-
-              {/* Delete Button */}
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setDeleteConfirm(selectedMsg.id)}
-                  className="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors font-medium text-sm"
-                >
-                  Delete Message
-                </button>
-              </div>
-
-              {/* Reply Section */}
-              {selectedMsg.status !== 'resolved' && (
-                <div className="border-t border-gray-200 pt-6">
-                  <h4 className="font-semibold text-[#111827] mb-3">Send Reply</h4>
-                  <textarea
-                    value={replyText}
-                    onChange={(e) => setReplyText(e.target.value)}
-                    placeholder="Type your reply here..."
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-[#2d6a4f] mb-3 h-24"
-                  />
-                  <button
-                    onClick={() => handleSendReply(selectedMsg.id)}
-                    className="w-full px-4 py-2 bg-[#2d6a4f] text-white rounded-lg hover:bg-[#1b4332] transition-colors font-medium"
-                  >
-                    Send Reply
-                  </button>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="bg-white border border-gray-200 rounded-xl p-12 text-center">
-              <p className="text-gray-500 text-lg">Select a message to view details</p>
-            </div>
+          {(data?.data ?? []).length === 0 && (
+            <EmptyState icon="✉" title="No messages found" />
           )}
-        </div>
-      </div>
 
-      {/* Delete Confirmation Modal */}
-      {deleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-sm">
-            <h3 className="font-display text-xl text-[#111827] mb-4">Delete Message</h3>
-            <p className="text-gray-600 mb-6">
-              Are you sure you want to delete this message? This action cannot be undone.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setDeleteConfirm(null)}
-                className="flex-1 px-4 py-2 border border-gray-300 text-[#111827] rounded-lg hover:bg-gray-50 transition-colors font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleDelete(deleteConfirm)}
-                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
-              >
-                Delete
-              </button>
+          <Pagination page={page} totalPages={totalPages} onPage={setPage} />
+        </>
+      )}
+
+      {/* View message modal */}
+      {viewing && (
+        <Modal title="Message" onClose={() => setViewing(null)}>
+          <div className="space-y-4">
+            <div className="grid sm:grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-gray-500 text-xs font-semibold uppercase mb-1">From</p>
+                <p className="font-semibold text-[#111827]">{viewing.name}</p>
+                <p className="text-gray-500">{viewing.email}</p>
+                {viewing.phone && <p className="text-gray-500">{viewing.phone}</p>}
+              </div>
+              <div>
+                <p className="text-gray-500 text-xs font-semibold uppercase mb-1">Details</p>
+                <p className="text-gray-500">Status: <StatusBadge status={viewing.status} /></p>
+                <p className="text-gray-500 mt-1">{new Date(viewing.createdAt).toLocaleString()}</p>
+              </div>
+            </div>
+            <div>
+              <p className="text-gray-500 text-xs font-semibold uppercase mb-1">Subject</p>
+              <p className="font-semibold text-[#111827]">{viewing.subject}</p>
+            </div>
+            <div>
+              <p className="text-gray-500 text-xs font-semibold uppercase mb-1">Message</p>
+              <div className="bg-gray-50 rounded-lg p-4 text-sm text-gray-700 whitespace-pre-wrap">
+                {viewing.body}
+              </div>
+            </div>
+            <div className="flex gap-2 pt-2">
+              {['READ','REPLIED','ARCHIVED'].map(s => (
+                <Btn
+                  key={s}
+                  size="sm"
+                  variant={viewing.status === s ? 'primary' : 'outline'}
+                  onClick={async () => {
+                    await handleStatus(viewing, s)
+                    setViewing({ ...viewing, status: s as Message['status'] })
+                  }}
+                >
+                  {s}
+                </Btn>
+              ))}
             </div>
           </div>
-        </div>
+        </Modal>
+      )}
+
+      {deleting && (
+        <ConfirmModal
+          title="Delete Message"
+          message={`Delete message from "${deleting.name}"?`}
+          onConfirm={handleDelete}
+          onCancel={() => setDeleting(null)}
+        />
       )}
     </div>
   )

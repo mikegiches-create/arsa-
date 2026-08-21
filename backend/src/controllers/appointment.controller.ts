@@ -1,56 +1,61 @@
 import { Response } from 'express'
+import { v4 as uuidv4 } from 'uuid'
 import { AuthRequest } from '../middleware/auth'
 import { sendSuccess, sendPaginated } from '../utils/response'
 import { NotFoundError, ValidationError, AuthorizationError } from '../utils/errors'
-import prisma from '../lib/prisma'
+import { query, queryOne, execute } from '../lib/db'
 import logger from '../utils/logger'
+
+const mapAppointment = (row: any) => ({
+  id: row.id,
+  title: row.title,
+  description: row.description,
+  userId: row.user_id,
+  propertyId: row.property_id,
+  scheduledAt: row.scheduled_at,
+  status: row.status,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+  user: row.user_email ? {
+    id: row.user_id,
+    email: row.user_email,
+    firstName: row.user_first_name,
+    lastName: row.user_last_name,
+  } : null,
+  property: row.property_title ? {
+    id: row.property_id,
+    title: row.property_title,
+    address: row.property_address,
+  } : null,
+})
+
+const APPT_SELECT = `
+  SELECT a.*,
+    u.email AS user_email, u.first_name AS user_first_name, u.last_name AS user_last_name,
+    p.title AS property_title, p.address AS property_address
+  FROM appointments a
+  LEFT JOIN users u ON u.id = a.user_id
+  LEFT JOIN properties p ON p.id = a.property_id
+`
 
 export const createAppointment = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      throw new ValidationError('User not authenticated')
-    }
+    if (!req.user) throw new ValidationError('User not authenticated')
 
     const { title, description, propertyId, scheduledAt } = req.body
 
-    const property = await prisma.property.findUnique({
-      where: { id: propertyId },
-    })
+    const property = await queryOne('SELECT id FROM properties WHERE id = ? AND deleted_at IS NULL', [propertyId])
+    if (!property) throw new NotFoundError('Property')
 
-    if (!property) {
-      throw new NotFoundError('Property')
-    }
+    const id = uuidv4()
+    await execute(
+      'INSERT INTO appointments (id, title, description, user_id, property_id, scheduled_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [id, title, description ?? null, req.user.id, propertyId, new Date(scheduledAt)]
+    )
 
-    const appointment = await prisma.appointment.create({
-      data: {
-        title,
-        description,
-        propertyId,
-        userId: req.user.id,
-        scheduledAt: new Date(scheduledAt),
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-          },
-        },
-        property: {
-          select: {
-            id: true,
-            title: true,
-            address: true,
-          },
-        },
-      },
-    })
-
-    logger.info(`Appointment created: ${appointment.id} by ${req.user.email}`)
-
-    sendSuccess(res, appointment, 'Appointment created successfully', 201)
+    const row = await queryOne<any>(`${APPT_SELECT} WHERE a.id = ?`, [id])
+    logger.info(`Appointment created: ${id} by ${req.user.email}`)
+    sendSuccess(res, mapAppointment(row), 'Appointment created successfully', 201)
   } catch (error) {
     logger.error('Create appointment error:', error)
     if (error instanceof ValidationError || error instanceof NotFoundError) {
@@ -63,54 +68,34 @@ export const createAppointment = async (req: AuthRequest, res: Response): Promis
 
 export const getAppointments = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      throw new ValidationError('User not authenticated')
-    }
+    if (!req.user) throw new ValidationError('User not authenticated')
 
-    const page = parseInt(req.query.page as string) || 1
+    const page  = parseInt(req.query.page  as string) || 1
     const limit = parseInt(req.query.limit as string) || 10
-    const status = req.query.status as string
+    const status = (req.query.status as string) || ''
+    const skip  = (page - 1) * limit
 
-    const skip = (page - 1) * limit
+    const conditions: string[] = []
+    const params: any[] = []
 
-    const where: any = req.user.role === 'ADMIN' ? {} : { userId: req.user.id }
-    if (status) where.status = status
+    if (req.user.role !== 'ADMIN') {
+      conditions.push('a.user_id = ?')
+      params.push(req.user.id)
+    }
+    if (status) { conditions.push('a.status = ?'); params.push(status) }
 
-    const [appointments, total] = await Promise.all([
-      prisma.appointment.findMany({
-        where,
-        include: {
-          user: {
-            select: {
-              id: true,
-              email: true,
-              firstName: true,
-              lastName: true,
-            },
-          },
-          property: {
-            select: {
-              id: true,
-              title: true,
-              address: true,
-            },
-          },
-        },
-        skip,
-        take: limit,
-        orderBy: { scheduledAt: 'asc' },
-      }),
-      prisma.appointment.count({ where }),
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+
+    const [rows, countRows] = await Promise.all([
+      query<any>(
+        `${APPT_SELECT} ${where} ORDER BY a.scheduled_at ASC LIMIT ? OFFSET ?`,
+        [...params, limit, skip]
+      ),
+      query<any>(`SELECT COUNT(*) AS total FROM appointments a ${where}`, params),
     ])
 
-    sendPaginated(
-      res,
-      appointments,
-      total,
-      page,
-      limit,
-      'Appointments retrieved successfully'
-    )
+    const total = countRows[0]?.total ?? 0
+    sendPaginated(res, rows.map(mapAppointment), total, page, limit, 'Appointments retrieved successfully')
   } catch (error) {
     logger.error('Get appointments error:', error)
     if (error instanceof ValidationError) {
@@ -123,42 +108,17 @@ export const getAppointments = async (req: AuthRequest, res: Response): Promise<
 
 export const getAppointmentById = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      throw new ValidationError('User not authenticated')
-    }
+    if (!req.user) throw new ValidationError('User not authenticated')
 
     const { id } = req.params
+    const row = await queryOne<any>(`${APPT_SELECT} WHERE a.id = ?`, [id])
+    if (!row) throw new NotFoundError('Appointment')
 
-    const appointment = await prisma.appointment.findUnique({
-      where: { id },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-          },
-        },
-        property: {
-          select: {
-            id: true,
-            title: true,
-            address: true,
-          },
-        },
-      },
-    })
-
-    if (!appointment) {
-      throw new NotFoundError('Appointment')
-    }
-
-    if (appointment.userId !== req.user.id && req.user.role !== 'ADMIN') {
+    if (row.user_id !== req.user.id && req.user.role !== 'ADMIN') {
       throw new AuthorizationError('You can only view your own appointments')
     }
 
-    sendSuccess(res, appointment, 'Appointment retrieved successfully')
+    sendSuccess(res, mapAppointment(row), 'Appointment retrieved successfully')
   } catch (error) {
     logger.error('Get appointment by ID error:', error)
     if (error instanceof NotFoundError || error instanceof AuthorizationError || error instanceof ValidationError) {
@@ -171,55 +131,34 @@ export const getAppointmentById = async (req: AuthRequest, res: Response): Promi
 
 export const updateAppointment = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      throw new ValidationError('User not authenticated')
-    }
+    if (!req.user) throw new ValidationError('User not authenticated')
 
     const { id } = req.params
-    const { title, description, scheduledAt, status } = req.body
+    const existing = await queryOne<any>('SELECT id, user_id FROM appointments WHERE id = ?', [id])
+    if (!existing) throw new NotFoundError('Appointment')
 
-    const appointment = await prisma.appointment.findUnique({
-      where: { id },
-    })
-
-    if (!appointment) {
-      throw new NotFoundError('Appointment')
-    }
-
-    if (appointment.userId !== req.user.id && req.user.role !== 'ADMIN') {
+    if (existing.user_id !== req.user.id && req.user.role !== 'ADMIN') {
       throw new AuthorizationError('You can only update your own appointments')
     }
 
-    const updated = await prisma.appointment.update({
-      where: { id },
-      data: {
-        ...(title && { title }),
-        ...(description && { description }),
-        ...(scheduledAt && { scheduledAt: new Date(scheduledAt) }),
-        ...(status && { status }),
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-          },
-        },
-        property: {
-          select: {
-            id: true,
-            title: true,
-            address: true,
-          },
-        },
-      },
-    })
+    const { title, description, scheduledAt, status } = req.body
 
+    const sets: string[] = []
+    const params: any[] = []
+
+    if (title       !== undefined) { sets.push('title = ?');        params.push(title) }
+    if (description !== undefined) { sets.push('description = ?');  params.push(description) }
+    if (scheduledAt !== undefined) { sets.push('scheduled_at = ?'); params.push(new Date(scheduledAt)) }
+    if (status      !== undefined) { sets.push('status = ?');       params.push(status) }
+
+    if (sets.length > 0) {
+      params.push(id)
+      await execute(`UPDATE appointments SET ${sets.join(', ')} WHERE id = ?`, params)
+    }
+
+    const row = await queryOne<any>(`${APPT_SELECT} WHERE a.id = ?`, [id])
     logger.info(`Appointment updated: ${id} by ${req.user.email}`)
-
-    sendSuccess(res, updated, 'Appointment updated successfully')
+    sendSuccess(res, mapAppointment(row), 'Appointment updated successfully')
   } catch (error) {
     logger.error('Update appointment error:', error)
     if (error instanceof NotFoundError || error instanceof AuthorizationError || error instanceof ValidationError) {
@@ -232,30 +171,18 @@ export const updateAppointment = async (req: AuthRequest, res: Response): Promis
 
 export const deleteAppointment = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      throw new ValidationError('User not authenticated')
-    }
+    if (!req.user) throw new ValidationError('User not authenticated')
 
     const { id } = req.params
+    const existing = await queryOne<any>('SELECT id, user_id FROM appointments WHERE id = ?', [id])
+    if (!existing) throw new NotFoundError('Appointment')
 
-    const appointment = await prisma.appointment.findUnique({
-      where: { id },
-    })
-
-    if (!appointment) {
-      throw new NotFoundError('Appointment')
-    }
-
-    if (appointment.userId !== req.user.id && req.user.role !== 'ADMIN') {
+    if (existing.user_id !== req.user.id && req.user.role !== 'ADMIN') {
       throw new AuthorizationError('You can only delete your own appointments')
     }
 
-    await prisma.appointment.delete({
-      where: { id },
-    })
-
+    await execute('DELETE FROM appointments WHERE id = ?', [id])
     logger.info(`Appointment deleted: ${id} by ${req.user.email}`)
-
     sendSuccess(res, {}, 'Appointment deleted successfully')
   } catch (error) {
     logger.error('Delete appointment error:', error)

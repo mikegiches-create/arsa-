@@ -1,142 +1,134 @@
 import { useState } from 'react'
-import { PROPERTY_CATEGORIES } from '../../components/data/constants'
-import { Category } from '../../types'
+import { categoriesApi, Category } from '../../services/api'
+import { useApi } from '../../hooks/useApi'
+import {
+  PageLoader, ErrorBanner, EmptyState, Modal, ConfirmModal,
+  PageHeader, Table, Btn, Field, inputCls, Pagination,
+} from '../../components/admin/ui'
+
+const EMPTY: Partial<Category> = { name: '', slug: '', description: '', icon: '' }
 
 export default function Categories() {
-  const [categories, setCategories] = useState<Category[]>(
-    PROPERTY_CATEGORIES.map(c => ({
-      ...c,
-      id: Math.random().toString(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    }))
-  )
+  const [page, setPage]         = useState(1)
+  const [search, setSearch]     = useState('')
   const [showForm, setShowForm] = useState(false)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [formData, setFormData] = useState<Partial<Category>>({
-    name: '',
-    icon: '',
-    count: 0,
-  })
+  const [editing, setEditing]   = useState<Category | null>(null)
+  const [deleting, setDeleting] = useState<Category | null>(null)
+  const [form, setForm]         = useState<Partial<Category>>(EMPTY)
+  const [saving, setSaving]     = useState(false)
+  const [formErr, setFormErr]   = useState('')
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (editingId) {
-      setCategories(categories.map(c =>
-        c.id === editingId ? { ...c, ...formData, updatedAt: new Date().toISOString() } : c
-      ))
-      setEditingId(null)
-    } else {
-      setCategories([
-        ...categories,
-        {
-          ...formData,
-          id: Date.now().toString(),
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        } as Category,
-      ])
-    }
-    setFormData({ name: '', icon: '', count: 0 })
-    setShowForm(false)
+  const { data, loading, error, refetch } = useApi(
+    () => categoriesApi.list(page, 15, search), [page, search]
+  )
+
+  const slugify = (name: string) => name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+
+  const openAdd  = () => { setEditing(null); setForm(EMPTY); setFormErr(''); setShowForm(true) }
+  const openEdit = (c: Category) => { setEditing(c); setForm({ ...c }); setFormErr(''); setShowForm(true) }
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault(); setSaving(true); setFormErr('')
+    try {
+      editing ? await categoriesApi.update(editing.id, form) : await categoriesApi.create(form)
+      setShowForm(false); refetch()
+    } catch (err) {
+      setFormErr(err instanceof Error ? err.message : 'Save failed')
+    } finally { setSaving(false) }
   }
 
-  const handleEdit = (category: Category) => {
-    setFormData(category)
-    setEditingId(category.id)
-    setShowForm(true)
+  const handleDelete = async () => {
+    if (!deleting) return
+    try { await categoriesApi.delete(deleting.id); setDeleting(null); refetch() } catch {}
   }
 
-  const handleDelete = (id: string) => {
-    if (confirm('Delete this category?')) {
-      setCategories(categories.filter(c => c.id !== id))
-    }
-  }
+  const set = (k: keyof Category, v: any) => setForm(f => ({ ...f, [k]: v }))
+  const total = data?.pagination.total ?? 0
+  const totalPages = data?.pagination.totalPages ?? 1
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="font-display text-3xl text-[#111827]">Category Management</h2>
-          <p className="text-gray-600 mt-1">Manage property categories</p>
-        </div>
-        <button
-          onClick={() => {
-            setShowForm(!showForm)
-            setEditingId(null)
-            setFormData({ name: '', icon: '', count: 0 })
-          }}
-          className="px-6 py-2.5 bg-[#2d6a4f] text-white rounded-lg hover:bg-[#1b4332] font-semibold"
-        >
-          {showForm ? '✕ Cancel' : '+ Add Category'}
-        </button>
-      </div>
+      <PageHeader
+        title="Categories"
+        subtitle={`${total} categories`}
+        action={<Btn onClick={openAdd}>+ Add Category</Btn>}
+      />
 
-      {showForm && (
-        <div className="bg-white border border-gray-200 rounded-xl p-6">
-          <form onSubmit={handleSubmit} className="grid md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-semibold text-[#111827] mb-2">Name</label>
-              <input
-                type="text"
-                value={formData.name || ''}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-[#2d6a4f]"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-[#111827] mb-2">Icon</label>
-              <input
-                type="text"
-                value={formData.icon || ''}
-                onChange={(e) => setFormData({ ...formData, icon: e.target.value })}
-                placeholder="e.g., 🏠"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-[#2d6a4f]"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-[#111827] mb-2">Count</label>
-              <input
-                type="number"
-                value={formData.count || 0}
-                onChange={(e) => setFormData({ ...formData, count: parseInt(e.target.value) })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-[#2d6a4f]"
-              />
-            </div>
-            <button
-              type="submit"
-              className="md:col-span-3 px-6 py-2.5 bg-[#2d6a4f] text-white rounded-lg hover:bg-[#1b4332] font-semibold"
-            >
-              {editingId ? 'Update' : 'Create'}
-            </button>
-          </form>
-        </div>
+      <input
+        value={search}
+        onChange={e => { setSearch(e.target.value); setPage(1) }}
+        placeholder="Search categories…"
+        className="w-full sm:max-w-xs px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-[#2d6a4f] focus:ring-2 focus:ring-[#2d6a4f]/20"
+      />
+
+      {loading && <PageLoader />}
+      {error   && <ErrorBanner message={error} onRetry={refetch} />}
+
+      {!loading && !error && (
+        <>
+          <Table headers={['Icon', 'Name', 'Slug', 'Properties', 'Actions']}>
+            {(data?.data ?? []).map(c => (
+              <tr key={c.id} className="hover:bg-gray-50 transition-colors">
+                <td className="px-5 py-3.5 text-2xl">{c.icon ?? '📂'}</td>
+                <td className="px-5 py-3.5 text-sm font-semibold text-[#111827]">{c.name}</td>
+                <td className="px-5 py-3.5 text-xs text-gray-500 font-mono">{c.slug}</td>
+                <td className="px-5 py-3.5 text-sm font-bold text-[#2d6a4f]">{c.propertyCount ?? 0}</td>
+                <td className="px-5 py-3.5">
+                  <div className="flex gap-2">
+                    <Btn size="sm" variant="outline" onClick={() => openEdit(c)}>Edit</Btn>
+                    <Btn size="sm" variant="danger"  onClick={() => setDeleting(c)}>Del</Btn>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </Table>
+
+          {(data?.data ?? []).length === 0 && (
+            <EmptyState icon="📂" title="No categories yet" action={<Btn onClick={openAdd}>+ Add Category</Btn>} />
+          )}
+
+          <Pagination page={page} totalPages={totalPages} onPage={setPage} />
+        </>
       )}
 
-      <div className="grid md:grid-cols-3 gap-6">
-        {categories.map((cat) => (
-          <div key={cat.id} className="bg-white border border-gray-200 rounded-xl p-6">
-            <div className="text-4xl mb-3">{cat.icon}</div>
-            <h3 className="font-semibold text-[#111827] mb-2">{cat.name}</h3>
-            <p className="text-sm text-gray-600 mb-4">{cat.count} properties</p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => handleEdit(cat)}
-                className="flex-1 px-3 py-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 font-semibold text-sm"
-              >
-                Edit
-              </button>
-              <button
-                onClick={() => handleDelete(cat.id)}
-                className="flex-1 px-3 py-2 bg-red-100 text-red-700 rounded hover:bg-red-200 font-semibold text-sm"
-              >
-                Delete
-              </button>
+      {showForm && (
+        <Modal title={editing ? 'Edit Category' : 'Add Category'} onClose={() => setShowForm(false)}>
+          <form onSubmit={handleSave} className="space-y-4">
+            {formErr && <div className="bg-red-50 text-red-700 text-sm px-4 py-2.5 rounded-lg font-medium">{formErr}</div>}
+            <Field label="Name">
+              <input
+                className={inputCls}
+                value={form.name ?? ''}
+                onChange={e => set('name', e.target.value)}
+                onBlur={e => !editing && !form.slug && set('slug', slugify(e.target.value))}
+                required
+              />
+            </Field>
+            <Field label="Slug">
+              <input className={inputCls} value={form.slug ?? ''} onChange={e => set('slug', slugify(e.target.value))} required />
+            </Field>
+            <Field label="Icon (emoji)">
+              <input className={inputCls} value={form.icon ?? ''} onChange={e => set('icon', e.target.value)} placeholder="🏢" maxLength={4} />
+            </Field>
+            <Field label="Description">
+              <textarea className={inputCls} rows={2} value={form.description ?? ''} onChange={e => set('description', e.target.value)} />
+            </Field>
+            <div className="flex gap-3 pt-2">
+              <Btn type="submit" disabled={saving}>{saving ? 'Saving…' : editing ? 'Update' : 'Create'}</Btn>
+              <Btn variant="ghost" onClick={() => setShowForm(false)}>Cancel</Btn>
             </div>
-          </div>
-        ))}
-      </div>
+          </form>
+        </Modal>
+      )}
+
+      {deleting && (
+        <ConfirmModal
+          title="Delete Category"
+          message={`Delete "${deleting.name}"? Properties in this category may be affected.`}
+          onConfirm={handleDelete}
+          onCancel={() => setDeleting(null)}
+        />
+      )}
     </div>
   )
 }

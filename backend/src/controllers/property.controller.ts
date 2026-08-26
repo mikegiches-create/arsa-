@@ -38,20 +38,11 @@ const mapProperty = (row: any) => ({
   views: row.views,
   categoryId: row.category_id,
   locationId: row.location_id,
-  agentId: row.agent_id,
   ownerId: row.owner_id,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
   category: row.category_name ? { id: row.category_id, name: row.category_name, slug: row.category_slug } : undefined,
   location: row.location_name ? { id: row.location_id, name: row.location_name, slug: row.location_slug } : undefined,
-  agent: row.agent_first_name ? {
-    id: row.agent_id,
-    firstName: row.agent_first_name,
-    lastName: row.agent_last_name,
-    email: row.agent_email,
-    phone: row.agent_phone,
-    avatar: row.agent_avatar,
-  } : undefined,
   owner: row.owner_email ? {
     id: row.owner_id,
     email: row.owner_email,
@@ -64,7 +55,6 @@ const PROPERTY_JOIN = `
   FROM properties p
   LEFT JOIN categories c  ON p.category_id = c.id
   LEFT JOIN locations  lo ON p.location_id  = lo.id
-  LEFT JOIN agents     a  ON p.agent_id     = a.id
   LEFT JOIN users      u  ON p.owner_id     = u.id
 `
 
@@ -72,8 +62,6 @@ const PROPERTY_SELECT = `
   SELECT p.*,
     c.name  AS category_name,  c.slug AS category_slug,
     lo.name AS location_name, lo.slug AS location_slug,
-    a.first_name AS agent_first_name, a.last_name AS agent_last_name,
-    a.email AS agent_email, a.phone AS agent_phone, a.avatar AS agent_avatar,
     u.email AS owner_email, u.first_name AS owner_first_name, u.last_name AS owner_last_name
 `
 
@@ -83,7 +71,7 @@ export const createProperty = async (req: AuthRequest, res: Response): Promise<v
 
     const {
       title, description, price, type, address, city, state, zipCode, country,
-      bedrooms, bathrooms, squareFeet, yearBuilt, categoryId, locationId, agentId,
+      bedrooms, bathrooms, squareFeet, yearBuilt, categoryId, locationId,
       images, thumbnail,
     } = req.body
 
@@ -92,14 +80,14 @@ export const createProperty = async (req: AuthRequest, res: Response): Promise<v
     await execute(
       `INSERT INTO properties
          (id, title, description, price, type, address, city, state, zip_code, country,
-          bedrooms, bathrooms, square_feet, year_built, category_id, location_id, agent_id,
+          bedrooms, bathrooms, square_feet, year_built, category_id, location_id,
           owner_id, images, thumbnail)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id, title, description, parseFloat(price), type, address, city, state, zipCode, country,
         parseInt(bedrooms), parseInt(bathrooms), parseInt(squareFeet),
         yearBuilt ? parseInt(yearBuilt) : null,
-        categoryId, locationId, agentId, req.user.id,
+        categoryId, locationId, req.user.id,
         JSON.stringify(images || []), thumbnail ?? null,
       ]
     )
@@ -211,7 +199,7 @@ export const updateProperty = async (req: AuthRequest, res: Response): Promise<v
 
     const {
       title, description, price, type, status, address, city, state, zipCode, country,
-      bedrooms, bathrooms, squareFeet, yearBuilt, categoryId, locationId, agentId,
+      bedrooms, bathrooms, squareFeet, yearBuilt, categoryId, locationId,
       images, thumbnail, featured,
     } = req.body
 
@@ -234,7 +222,6 @@ export const updateProperty = async (req: AuthRequest, res: Response): Promise<v
     if (yearBuilt   !== undefined) { sets.push('year_built = ?');    params.push(parseInt(yearBuilt)) }
     if (categoryId  !== undefined) { sets.push('category_id = ?');  params.push(categoryId) }
     if (locationId  !== undefined) { sets.push('location_id = ?');  params.push(locationId) }
-    if (agentId     !== undefined) { sets.push('agent_id = ?');      params.push(agentId) }
     if (images      !== undefined) { sets.push('images = ?');        params.push(JSON.stringify(images)) }
     if (thumbnail   !== undefined) { sets.push('thumbnail = ?');     params.push(thumbnail) }
     if (featured    !== undefined) { sets.push('featured = ?');      params.push(featured ? 1 : 0) }

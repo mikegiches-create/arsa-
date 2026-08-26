@@ -57,24 +57,6 @@ CREATE TABLE IF NOT EXISTS locations (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─────────────────────────────────────────────
--- agents
--- ─────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS agents (
-  id          VARCHAR(36)  NOT NULL PRIMARY KEY,
-  first_name  VARCHAR(100) NOT NULL,
-  last_name   VARCHAR(100) NOT NULL,
-  email       VARCHAR(255) NOT NULL UNIQUE,
-  phone       VARCHAR(50)  NOT NULL,
-  avatar      VARCHAR(500),
-  bio         TEXT,
-  license     VARCHAR(100),
-  created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  deleted_at  DATETIME,
-  INDEX idx_agents_email (email)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ─────────────────────────────────────────────
 -- properties
 -- ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS properties (
@@ -99,7 +81,6 @@ CREATE TABLE IF NOT EXISTS properties (
   thumbnail    VARCHAR(500),
   category_id  VARCHAR(36)  NOT NULL,
   location_id  VARCHAR(36)  NOT NULL,
-  agent_id     VARCHAR(36)  NOT NULL,
   owner_id     VARCHAR(36)  NOT NULL,
   featured     TINYINT(1)   NOT NULL DEFAULT 0,
   views        INT          NOT NULL DEFAULT 0,
@@ -108,11 +89,9 @@ CREATE TABLE IF NOT EXISTS properties (
   deleted_at   DATETIME,
   CONSTRAINT fk_prop_category  FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE RESTRICT,
   CONSTRAINT fk_prop_location  FOREIGN KEY (location_id) REFERENCES locations(id)  ON DELETE RESTRICT,
-  CONSTRAINT fk_prop_agent     FOREIGN KEY (agent_id)    REFERENCES agents(id)     ON DELETE RESTRICT,
   CONSTRAINT fk_prop_owner     FOREIGN KEY (owner_id)    REFERENCES users(id)      ON DELETE CASCADE,
   INDEX idx_prop_category (category_id),
   INDEX idx_prop_location (location_id),
-  INDEX idx_prop_agent    (agent_id),
   INDEX idx_prop_owner    (owner_id),
   INDEX idx_prop_status   (status),
   FULLTEXT idx_prop_search_title (title),

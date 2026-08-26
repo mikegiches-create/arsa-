@@ -1,14 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  propertiesApi, agentsApi, usersApi, messagesApi,
+  propertiesApi, usersApi, messagesApi,
   testimonialsApi, Property, Message,
 } from '../../services/api'
 import { PageLoader, ErrorBanner, StatusBadge } from '../../components/admin/ui'
 
 interface Stats {
   properties: number
-  agents: number
   users: number
   testimonials: number
   unreadMessages: number
@@ -24,9 +23,8 @@ export default function Dashboard() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [props, agents, users, testi, msgs, unread] = await Promise.all([
+        const [props, users, testi, msgs, unread] = await Promise.all([
           propertiesApi.list({ page: 1, limit: 5 }),
-          agentsApi.list(1, 1),
           usersApi.list(1, 1),
           testimonialsApi.list(1, 1),
           messagesApi.list(1, 5),
@@ -34,7 +32,6 @@ export default function Dashboard() {
         ])
         setStats({
           properties:     props.pagination.total,
-          agents:         agents.pagination.total,
           users:          users.pagination.total,
           testimonials:   testi.pagination.total,
           unreadMessages: unread.data.count,
@@ -55,7 +52,6 @@ export default function Dashboard() {
 
   const statCards = [
     { label: 'Properties',   value: stats!.properties,     icon: '⌂',  color: 'bg-blue-50   border-blue-200',   text: 'text-blue-600',   href: '/admin/properties' },
-    { label: 'Agents',       value: stats!.agents,         icon: '◉',  color: 'bg-green-50  border-green-200',  text: 'text-green-600',  href: '/admin/agents' },
     { label: 'Users',        value: stats!.users,          icon: '◑',  color: 'bg-purple-50 border-purple-200', text: 'text-purple-600', href: '/admin/users' },
     { label: 'Testimonials', value: stats!.testimonials,   icon: '★',  color: 'bg-yellow-50 border-yellow-200', text: 'text-yellow-600', href: '/admin/testimonials' },
     { label: 'Unread Msgs',  value: stats!.unreadMessages, icon: '✉',  color: 'bg-red-50    border-red-200',    text: 'text-red-600',    href: '/admin/messages' },
@@ -69,8 +65,13 @@ export default function Dashboard() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-        {statCards.map(s => (
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+        {[
+          { label: 'Properties',   value: stats!.properties,     icon: '⌂',  color: 'bg-blue-50   border-blue-200',   text: 'text-blue-600',   href: '/admin/properties' },
+          { label: 'Users',        value: stats!.users,          icon: '◑',  color: 'bg-purple-50 border-purple-200', text: 'text-purple-600', href: '/admin/users' },
+          { label: 'Testimonials', value: stats!.testimonials,   icon: '★',  color: 'bg-yellow-50 border-yellow-200', text: 'text-yellow-600', href: '/admin/testimonials' },
+          { label: 'Unread Msgs',  value: stats!.unreadMessages, icon: '✉',  color: 'bg-red-50    border-red-200',    text: 'text-red-600',    href: '/admin/messages' },
+        ].map(s => (
           <Link
             key={s.label}
             to={s.href}
@@ -145,10 +146,9 @@ export default function Dashboard() {
       </div>
 
       {/* Quick links */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {[
           { label: 'Add Property',  href: '/admin/properties', icon: '+⌂' },
-          { label: 'Add Agent',     href: '/admin/agents',     icon: '+◉' },
           { label: 'Add Category',  href: '/admin/categories', icon: '+⊞' },
           { label: 'Add Location',  href: '/admin/locations',  icon: '+◎' },
         ].map(q => (

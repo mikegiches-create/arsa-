@@ -1,14 +1,14 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { FOOTER_LINKS } from '../data/constants'
+import logoImg from '../../assets/logo.jpg'
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
 const SOCIAL = [
-  { name: 'Facebook',  icon: '𝐟', href: 'https://facebook.com' },
-  { name: 'Instagram', icon: '◎', href: 'https://instagram.com' },
-  { name: 'LinkedIn',  icon: 'in', href: 'https://linkedin.com' },
-  { name: 'Twitter',   icon: '𝕏', href: 'https://twitter.com' },
+  
+  { name: 'Instagram', icon: '📷', href: 'https://www.instagram.com/arsarealestates?igsi=ZDNlZDc0MzIxNw==' },
+  
 ]
 
 export default function Footer() {
@@ -44,8 +44,12 @@ export default function Footer() {
         <div className="grid sm:grid-cols-2 md:grid-cols-5 gap-10 mb-14">
           {/* Brand */}
           <div className="sm:col-span-2 md:col-span-1">
-            <a href="/" className="font-display text-2xl tracking-widest mb-4 block">
-              ARSA<span className="text-[#2d6a4f]">·</span>REALESTATE
+            <a href="/" className="mb-4 block hover:opacity-80 transition-opacity">
+              <img
+                src={logoImg}
+                alt="ARSA Real Estate"
+                className="h-12 w-auto"
+              />
             </a>
             <p className="text-white/60 text-sm leading-relaxed">
               Your trusted partner in luxury real estate solutions worldwide.
@@ -92,31 +96,7 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Legal */}
-          <div>
-            <h4 className="font-semibold text-[#40916c] mb-4 text-xs tracking-widest uppercase">
-              Legal
-            </h4>
-            <ul className="space-y-2.5">
-              {FOOTER_LINKS.legal.map((link) => (
-                <li key={link.label}>
-                  <a
-                    href={link.href}
-                    onClick={scrollTo(link.href)}
-                    className="text-white/60 text-sm hover:text-[#40916c] transition-colors"
-                  >
-                    {link.label}
-                  </a>
-                </li>
-              ))}
-              <li>
-                <Link to="/login" className="text-white/60 text-sm hover:text-[#40916c] transition-colors">
-                  Admin Login
-                </Link>
-              </li>
-            </ul>
-          </div>
-
+          
           {/* Newsletter */}
           <div>
             <h4 className="font-semibold text-[#40916c] mb-4 text-xs tracking-widest uppercase">

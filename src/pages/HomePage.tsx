@@ -5,7 +5,6 @@ import WhyChooseUs from '../components/sections/WhyChooseUs'
 import HowItWorks from '../components/sections/HowItWorks'
 import FeaturedLocations from '../components/sections/FeaturedLocations'
 import About from '../components/sections/About'
-import Agents from '../components/sections/Agents'
 import Testimonials from '../components/sections/Testimonials'
 import CTABanner from '../components/sections/CTABanner'
 import FAQ from '../components/sections/FAQ'
@@ -39,9 +38,6 @@ export default function HomePage() {
 
       {/* Featured Locations */}
       <FeaturedLocations />
-
-      {/* Agents Section */}
-      <Agents />
 
       {/* Testimonials */}
       <Testimonials />

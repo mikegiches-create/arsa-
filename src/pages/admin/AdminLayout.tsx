@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react'
 import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import logoImg from '../../assets/logo.jpg'
 
 const NAV = [
   { label: 'Dashboard',    icon: '◈',  href: '/admin/dashboard' },
   { label: 'Properties',   icon: '⌂',  href: '/admin/properties' },
   { label: 'Categories',   icon: '⊞',  href: '/admin/categories' },
   { label: 'Locations',    icon: '◎',  href: '/admin/locations' },
-  { label: 'Agents',       icon: '◉',  href: '/admin/agents' },
   { label: 'Users',        icon: '◑',  href: '/admin/users' },
   { label: 'Testimonials', icon: '★',  href: '/admin/testimonials' },
   { label: 'Messages',     icon: '✉',  href: '/admin/messages' },
@@ -22,6 +22,26 @@ export default function AdminLayout() {
   const navigate = useNavigate()
   const { user, logout } = useAuth()
 
+  // Auto-logout when leaving admin area or closing/navigating away
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      logout()
+    }
+
+    const handlePageHide = () => {
+      logout()
+    }
+
+    // Listen for page unload (refresh, tab close, navigation away)
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    window.addEventListener('pagehide', handlePageHide)
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      window.removeEventListener('pagehide', handlePageHide)
+    }
+  }, [logout])
+
   // Close mobile drawer on route change
   useEffect(() => { setMobileOpen(false) }, [location.pathname])
 
@@ -32,9 +52,18 @@ export default function AdminLayout() {
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
       {/* Logo */}
-      <div className="px-5 py-5 border-b border-white/10 flex items-center justify-between">
-        <Link to="/admin/dashboard" className="font-display tracking-widest text-white truncate">
-          {collapsed ? 'A' : <><span className="text-lg">ARSA</span><span className="text-[#40916c]">·</span><span className="text-sm text-white/70">ADMIN</span></>}
+      <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+        <Link to="/admin/dashboard" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+          <img
+            src={logoImg}
+            alt="ARSA"
+            className={`${collapsed ? 'h-8 w-auto' : 'h-10 w-auto'} transition-all`}
+          />
+          {!collapsed && (
+            <span className="text-white text-xs font-bold tracking-widest">
+              ADMIN
+            </span>
+          )}
         </Link>
         {/* Desktop collapse toggle */}
         <button

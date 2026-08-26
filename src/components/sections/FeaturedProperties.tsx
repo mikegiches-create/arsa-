@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { properties as staticProperties } from '../data/properties'
-import { PROPERTY_FILTERS } from '../data/constants'
 import { propertiesApi } from '../../services/api'
 import { imgFallback } from '../../utils/imgFallback'
+import { getPropertyThumbnail } from '../../utils/assetImageLoader'
 import fallbackImg from '../../assets/DG-West-Sitting-room.webp'
 
 interface DisplayProperty {
@@ -20,8 +20,8 @@ interface DisplayProperty {
   status?: string
 }
 
-// Map backend property → display shape
-function mapApiProperty(p: any): DisplayProperty {
+// Map backend property → display shape with asset images
+function mapApiProperty(p: any, index: number): DisplayProperty {
   return {
     id:       p.id,
     title:    p.title,
@@ -32,7 +32,7 @@ function mapApiProperty(p: any): DisplayProperty {
     sqft:     Number(p.squareFeet).toLocaleString(),
     type:     p.type,
     tag:      p.featured ? 'Featured' : p.status ?? 'Available',
-    img:      p.thumbnail || '',
+    img:      getPropertyThumbnail(index),
     status:   p.status,
   }
 }
@@ -62,7 +62,7 @@ export default function FeaturedProperties() {
     try {
       const res = await propertiesApi.list({ limit: 12 })
       if (res.data && res.data.length > 0) {
-        setProperties(res.data.map(mapApiProperty))
+        setProperties(res.data.map((p, idx) => mapApiProperty(p, idx)))
       }
     } catch {
       // backend not running — keep static fallback
@@ -78,21 +78,24 @@ export default function FeaturedProperties() {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail
       if (detail?.search) setActiveFilter('All')
-      // Could extend: apply type filter from detail.type
     }
     window.addEventListener('heroSearch', handler)
     return () => window.removeEventListener('heroSearch', handler)
   }, [])
 
-  const filtered =
-    activeFilter === 'All'
+  // Generate dynamic filters from actual property types
+  const availableFilters = useMemo(() => {
+    const types = new Set(['All'])
+    properties.forEach(p => types.add(p.type))
+    return Array.from(types).sort((a, b) => a === 'All' ? -1 : a.localeCompare(b))
+  }, [properties])
+
+  // Filter logic
+  const filtered = useMemo(() => {
+    return activeFilter === 'All'
       ? properties
-      : properties.filter(
-          (p) =>
-            p.type.toLowerCase() === activeFilter.toLowerCase() ||
-            p.tag.toLowerCase()  === activeFilter.toLowerCase() ||
-            p.type === activeFilter
-        )
+      : properties.filter(p => p.type === activeFilter)
+  }, [properties, activeFilter])
 
   const tagColor: Record<string, string> = {
     Featured:  'bg-[#2d6a4f]',
@@ -120,7 +123,7 @@ export default function FeaturedProperties() {
 
         {/* Filter Buttons */}
         <div className="flex flex-wrap gap-2">
-          {PROPERTY_FILTERS.map((f) => (
+          {availableFilters.map((f) => (
             <button
               key={f}
               onClick={() => setActiveFilter(f)}

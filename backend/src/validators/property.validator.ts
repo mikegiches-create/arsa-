@@ -66,9 +66,6 @@ export const createPropertyValidator = [
   body('locationId')
     .notEmpty()
     .withMessage('Location is required'),
-  body('agentId')
-    .notEmpty()
-    .withMessage('Agent is required'),
 ]
 
 export const updatePropertyValidator = [

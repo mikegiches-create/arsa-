@@ -54,18 +54,6 @@ export interface Location {
   updatedAt: string
 }
 
-export interface Agent {
-  id: string
-  name: string
-  title: string
-  properties: number
-  image: string
-  phone: string
-  rating: number
-  createdAt: string
-  updatedAt: string
-}
-
 export interface Testimonial {
   id: string
   name: string

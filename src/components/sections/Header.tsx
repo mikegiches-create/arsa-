@@ -1,11 +1,16 @@
 import { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { NAVIGATION_MENU } from '../data/constants'
+import logoImg from '../../assets/logo.jpg'
 
 export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
   const navigate = useNavigate()
+  const location = useLocation()
+
+  // Determine if we should show auth buttons (only on login page)
+  const showAuthButtons = location.pathname === '/login'
 
   // Shrink header slightly on scroll
   useEffect(() => {
@@ -44,12 +49,21 @@ export default function Header() {
           scrolled ? 'h-16 bg-white shadow-md border-b border-gray-200' : 'h-20 bg-white/95 backdrop-blur-sm border-b border-gray-200'
         }`}
       >
-        {/* Logo */}
+        {/* Logo and Brand */}
         <a
           href="/"
-          className="font-display text-xl tracking-widest text-[#111827] font-bold shrink-0"
+          className="flex items-center gap-2 shrink-0 hover:opacity-90 transition-opacity"
         >
-          ARSA<span className="text-[#2d6a4f]">·</span>REALESTATE
+          <img
+            src={logoImg}
+            alt="ARSA Real Estate"
+            className={`transition-all duration-300 ${scrolled ? 'h-10 w-auto' : 'h-12 w-auto'}`}
+          />
+          <span className="hidden sm:inline font-display text-lg tracking-widest text-[#111827] font-bold">
+            ARSA
+            <span className="text-[#2d6a4f]">·</span>
+            <span className="text-sm text-[#111827]/70">REALESTATE</span>
+          </span>
         </a>
 
         {/* Desktop Nav */}
@@ -79,18 +93,22 @@ export default function Header() {
 
         {/* Desktop Actions */}
         <div className="hidden md:flex items-center gap-3 shrink-0">
-          <Link
-            to="/login"
-            className="text-[#111827] hover:text-[#2d6a4f] transition-colors font-semibold text-sm px-3 py-2"
-          >
-            Sign In
-          </Link>
-          <Link
-            to="/login"
-            className="bg-[#2d6a4f] text-white text-xs tracking-widest uppercase font-semibold px-5 py-2.5 rounded hover:bg-[#1b4332] transition-colors duration-300"
-          >
-            Register
-          </Link>
+          {showAuthButtons && (
+            <>
+              <Link
+                to="/login"
+                className="text-[#111827] hover:text-[#2d6a4f] transition-colors font-semibold text-sm px-3 py-2"
+              >
+                Sign In
+              </Link>
+              <Link
+                to="/login"
+                className="bg-[#2d6a4f] text-white text-xs tracking-widest uppercase font-semibold px-5 py-2.5 rounded hover:bg-[#1b4332] transition-colors duration-300"
+              >
+                Register
+              </Link>
+            </>
+          )}
         </div>
 
         {/* Mobile toggle */}
@@ -146,22 +164,24 @@ export default function Header() {
               </a>
             ))}
 
-            <div className="flex flex-col gap-3 w-full max-w-xs mt-6">
-              <Link
-                to="/login"
-                onClick={() => setMenuOpen(false)}
-                className="text-center py-3 border-2 border-[#2d6a4f] text-[#2d6a4f] rounded-lg font-semibold hover:bg-[#2d6a4f]/10 transition-colors"
-              >
-                Sign In
-              </Link>
-              <Link
-                to="/login"
-                onClick={() => setMenuOpen(false)}
-                className="text-center py-3 bg-[#2d6a4f] text-white rounded-lg font-semibold hover:bg-[#1b4332] transition-colors"
-              >
-                Register
-              </Link>
-            </div>
+            {showAuthButtons && (
+              <div className="flex flex-col gap-3 w-full max-w-xs mt-6">
+                <Link
+                  to="/login"
+                  onClick={() => setMenuOpen(false)}
+                  className="text-center py-3 border-2 border-[#2d6a4f] text-[#2d6a4f] rounded-lg font-semibold hover:bg-[#2d6a4f]/10 transition-colors"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  to="/login"
+                  onClick={() => setMenuOpen(false)}
+                  className="text-center py-3 bg-[#2d6a4f] text-white rounded-lg font-semibold hover:bg-[#1b4332] transition-colors"
+                >
+                  Register
+                </Link>
+              </div>
+            )}
           </nav>
         </div>
       )}

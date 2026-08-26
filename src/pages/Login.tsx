@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import logoImg from '../assets/logo.jpg'
 
 export default function Login() {
   const [email, setEmail]       = useState('')
@@ -45,10 +46,14 @@ export default function Login() {
     <div className="min-h-screen bg-gradient-to-br from-[#2d6a4f] to-[#1b4332] flex items-center justify-center px-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="font-display text-4xl text-white mb-2">
-            ARSA<span className="text-[#40916c]">·</span>REALESTATE
-          </h1>
-          <p className="text-white/70">Admin Portal</p>
+          <a href="/" className="inline-block hover:opacity-80 transition-opacity mb-4">
+            <img
+              src={logoImg}
+              alt="ARSA Real Estate"
+              className="h-16 w-auto"
+            />
+          </a>
+          <p className="text-white/80 text-sm font-semibold">Admin Portal</p>
         </div>
 
         <div className="bg-white rounded-2xl shadow-2xl p-8">

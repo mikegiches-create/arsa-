@@ -7,9 +7,13 @@ import {
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
-function authHeader() {
+function authHeader(): Record<string, string> {
   const token = localStorage.getItem('authToken')
-  return token ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' }
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (token) {
+    headers.Authorization = `Bearer ${token}`
+  }
+  return headers
 }
 
 async function apiGet<T>(path: string): Promise<T> {
@@ -21,6 +25,13 @@ async function apiGet<T>(path: string): Promise<T> {
 
 async function apiPost<T>(path: string, body: object): Promise<T> {
   const res  = await fetch(`${BASE_URL}${path}`, { method: 'POST', headers: authHeader(), body: JSON.stringify(body) })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data?.message || 'Request failed')
+  return data
+}
+
+async function apiDelete<T>(path: string): Promise<T> {
+  const res  = await fetch(`${BASE_URL}${path}`, { method: 'DELETE', headers: authHeader() })
   const data = await res.json()
   if (!res.ok) throw new Error(data?.message || 'Request failed')
   return data
@@ -68,6 +79,9 @@ export default function Newsletter() {
 
   // Subscribers list
   const [subPage, setSubPage]     = useState(1)
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; email: string } | null>(null)
+  const [deleting, setDeleting]   = useState(false)
+  const [deleteErr, setDeleteErr] = useState('')
   const { data: subData, loading: subLoading, error: subError, refetch: refetchSubs } = useApi(
     () => apiGet<any>(`/newsletter/subscribers?page=${subPage}&limit=20`),
     [subPage]
@@ -98,6 +112,27 @@ export default function Newsletter() {
       setTestResult({ ok: false, message: err instanceof Error ? err.message : 'Test failed' })
     } finally {
       setTesting(false)
+    }
+  }
+
+  const handleDeleteSubscriber = async (id: string, email: string) => {
+    setDeleteConfirm({ id, email })
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return
+    setDeleting(true)
+    setDeleteErr('')
+    try {
+      await apiDelete(`/newsletter/subscribers/${deleteConfirm.id}`)
+      setDeleteConfirm(null)
+      refetchSubs()
+      // Reload stats
+      apiGet<any>('/newsletter/stats').then(r => setStats(r.data)).catch(() => {})
+    } catch (err) {
+      setDeleteErr(err instanceof Error ? err.message : 'Failed to delete subscriber')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -235,7 +270,7 @@ export default function Newsletter() {
           {subError   && <ErrorBanner message={subError} onRetry={refetchSubs} />}
           {!subLoading && !subError && (
             <>
-              <Table headers={['Email', 'Status', 'Subscribed', 'Unsubscribed']}>
+              <Table headers={['Email', 'Status', 'Subscribed', 'Unsubscribed', 'Action']}>
                 {(subData?.data ?? []).map((s: Subscriber) => (
                   <tr key={s.id} className="hover:bg-gray-50">
                     <td className="px-5 py-3 text-sm text-[#111827]">{s.email}</td>
@@ -249,6 +284,14 @@ export default function Newsletter() {
                     <td className="px-5 py-3 text-xs text-gray-400">{new Date(s.created_at).toLocaleDateString()}</td>
                     <td className="px-5 py-3 text-xs text-gray-400">
                       {s.unsubscribed_at ? new Date(s.unsubscribed_at).toLocaleDateString() : '—'}
+                    </td>
+                    <td className="px-5 py-3 text-xs">
+                      <button
+                        onClick={() => handleDeleteSubscriber(s.id, s.email)}
+                        className="text-red-600 hover:text-red-700 font-semibold hover:underline transition-colors"
+                      >
+                        Delete
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -371,6 +414,43 @@ export default function Newsletter() {
               </div>
             </form>
           )}
+        </Modal>
+      )}
+
+      {/* ── Delete confirmation modal ── */}
+      {deleteConfirm && (
+        <Modal title="Confirm Delete" onClose={() => !deleting && setDeleteConfirm(null)} size="md">
+          <div className="space-y-4">
+            {deleteErr && (
+              <div className="bg-red-50 text-red-700 text-sm px-4 py-3 rounded-lg font-medium">{deleteErr}</div>
+            )}
+            <p className="text-gray-600">
+              Are you sure you want to delete this subscriber?
+            </p>
+            <p className="font-semibold text-[#111827] break-all">
+              {deleteConfirm.email}
+            </p>
+            <p className="text-xs text-gray-500">
+              This action cannot be undone. The subscriber will be permanently removed.
+            </p>
+            <div className="flex gap-3 pt-3">
+              <Btn
+                onClick={confirmDelete}
+                disabled={deleting}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                {deleting ? (
+                  <span className="flex items-center gap-2">
+                    <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                    Deleting…
+                  </span>
+                ) : '🗑 Delete Subscriber'}
+              </Btn>
+              <Btn variant="ghost" onClick={() => setDeleteConfirm(null)} disabled={deleting}>
+                Cancel
+              </Btn>
+            </div>
+          </div>
         </Modal>
       )}
     </div>

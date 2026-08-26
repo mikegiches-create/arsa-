@@ -13,7 +13,6 @@ import userRoutes        from './routes/user.routes'
 import propertyRoutes    from './routes/property.routes'
 import categoryRoutes    from './routes/category.routes'
 import locationRoutes    from './routes/location.routes'
-import agentRoutes       from './routes/agent.routes'
 import testimonialRoutes from './routes/testimonial.routes'
 import messageRoutes     from './routes/message.routes'
 import appointmentRoutes from './routes/appointment.routes'
@@ -62,7 +61,16 @@ app.use(
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ limit: '10mb', extended: true }))
 
-// ── Static uploads ────────────────────────────────────────────────────────────
+// ── Static assets & uploads ──────────────────────────────────────────────────
+// Serve public directory for assets (including logo for email)
+app.use(
+  '/assets',
+  express.static(path.join(process.cwd(), 'public', 'assets'), {
+    maxAge: '1y',
+    etag: false,
+  })
+)
+
 // In production on Render the filesystem is ephemeral — uploaded files won't
 // survive a redeploy. Wire Cloudinary in upload.routes.ts for persistent media.
 app.use(
@@ -101,7 +109,6 @@ app.use('/api/users',        userRoutes)
 app.use('/api/properties',   propertyRoutes)
 app.use('/api/categories',   categoryRoutes)
 app.use('/api/locations',    locationRoutes)
-app.use('/api/agents',       agentRoutes)
 app.use('/api/testimonials', testimonialRoutes)
 app.use('/api/messages',     messageRoutes)
 app.use('/api/appointments', appointmentRoutes)

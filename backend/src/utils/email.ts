@@ -1,6 +1,36 @@
 import nodemailer from 'nodemailer'
+import { readFileSync } from 'fs'
+import { resolve } from 'path'
 import config from '../config/index'
 import logger from './logger'
+
+// ── Logo attachment for CID embedding ──────────────────────────────────────────
+
+// Load the logo file for email embedding - try multiple paths
+const LOGO_PATHS = [
+  resolve(process.cwd(), 'backend', 'public', 'assets', 'logo.jpg'),  // Canonical backend assets
+  resolve(process.cwd(), 'public', 'assets', 'logo.jpg'),             // Alternative public dir
+  resolve(__dirname, '../../public/assets/logo.jpg'),                 // From compiled dist
+  resolve(__dirname, '../../../src/assets/logo.jpg'),                 // Fallback to src
+]
+
+let logoBuffer: Buffer | null = null
+let logoPath = ''
+
+for (const path of LOGO_PATHS) {
+  try {
+    logoBuffer = readFileSync(path)
+    logoPath = path
+    logger.info(`[EMAIL] Logo loaded (${logoBuffer.length} bytes) from ${path}`)
+    break
+  } catch (err) {
+    // Try next path
+  }
+}
+
+if (!logoBuffer) {
+  logger.warn(`[EMAIL] Logo not found. Checked: ${LOGO_PATHS.join(', ')}`)
+}
 
 // ── Diagnostics ───────────────────────────────────────────────────────────────
 
@@ -83,14 +113,28 @@ export async function sendEmail(opts: MailOptions): Promise<{ ok: boolean; error
   }
 
   try {
-    const info = await transport.sendMail({
-      // Gmail requires from = authenticated user; show brand name via display name
+    // Build email with CID-embedded logo if available
+    const mailOptions: any = {
       from:    `"ARSA Real Estate" <${config.email.user}>`,
       to:      Array.isArray(opts.to) ? opts.to.join(', ') : opts.to,
       subject: opts.subject,
       html:    opts.html,
       text:    opts.text ?? opts.html.replace(/<[^>]+>/g, ''),
-    })
+    }
+
+    // Attach logo for CID embedding (development & email client display)
+    if (logoBuffer) {
+      mailOptions.attachments = [
+        {
+          filename: 'logo.jpg',
+          content: logoBuffer,
+          cid: 'arsa-logo', // Referenced as cid:arsa-logo in HTML
+          contentDisposition: 'inline',
+        },
+      ]
+    }
+
+    const info = await transport.sendMail(mailOptions)
     logger.info(`[EMAIL] Sent OK — id:${info.messageId} to:${opts.to} subject:"${opts.subject}"`)
     return { ok: true }
   } catch (err: any) {
@@ -102,7 +146,37 @@ export async function sendEmail(opts: MailOptions): Promise<{ ok: boolean; error
 
 // ── Templates ─────────────────────────────────────────────────────────────────
 
-const baseLayout = (content: string) => `
+// Get the logo URL that works in both development and production email clients
+function getLogoUrl(): string {
+  // In production: use API_URL (server hostname) + /assets/logo.jpg
+  // In development: use backend CID embedding (cid:arsa-logo)
+  
+  if (config.isDevelopment) {
+    // CID embedding via attachment in sendEmail()
+    return 'cid:arsa-logo'
+  }
+  
+  // Production: use backend's public /assets/ endpoint with HTTPS
+  let url = config.apiUrl || 'http://localhost:5000'
+  
+  // Ensure HTTPS in production for email clients
+  if (config.isProduction && url.startsWith('http://')) {
+    url = url.replace('http://', 'https://')
+  }
+  
+  // Remove trailing slash if present
+  url = url.replace(/\/$/, '')
+  
+  // Append logo path
+  return `${url}/assets/logo.jpg`
+}
+
+const baseLayout = (content: string) => {
+  // Development: Use CID (logo embedded as inline attachment)
+  // Production: Use backend URL for email clients to fetch logo
+  const logoSrc = config.isDevelopment ? 'cid:arsa-logo' : getLogoUrl()
+  
+  return `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -113,7 +187,8 @@ const baseLayout = (content: string) => `
     body { margin:0; padding:0; background:#f4f6f5; font-family:'DM Sans',Arial,sans-serif; color:#111827; }
     .wrap { max-width:600px; margin:40px auto; background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 4px 24px rgba(0,0,0,0.07); }
     .header { background:linear-gradient(135deg,#2d6a4f,#1b4332); padding:36px 40px; text-align:center; }
-    .header h1 { margin:0; color:#fff; font-size:26px; letter-spacing:3px; font-weight:700; }
+    .header-logo { max-width:120px; height:auto; display:inline-block; margin-bottom:12px; }
+    .header h1 { margin:0; color:#fff; font-size:24px; letter-spacing:2px; font-weight:700; }
     .header p  { margin:6px 0 0; color:rgba(255,255,255,0.75); font-size:13px; }
     .body   { padding:36px 40px; }
     .footer { background:#f4f6f5; padding:24px 40px; text-align:center; font-size:12px; color:#6b7280; border-top:1px solid #e5e7eb; }
@@ -127,6 +202,7 @@ const baseLayout = (content: string) => `
 <body>
   <div class="wrap">
     <div class="header">
+      <img src="${logoSrc}" alt="ARSA Real Estate" class="header-logo" style="border-radius:4px;"/>
       <h1>ARSA · REALESTATE</h1>
       <p>Curated Luxury · Exceptional Properties</p>
     </div>
@@ -138,6 +214,7 @@ const baseLayout = (content: string) => `
   </div>
 </body>
 </html>`
+}
 
 export const templates = {
 

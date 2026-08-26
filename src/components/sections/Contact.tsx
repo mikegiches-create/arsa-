@@ -49,9 +49,9 @@ export default function Contact() {
           <div className="space-y-6">
             {[
               { label: 'Phone',       value: '+254 795 308 101',              icon: '📞', href: 'tel:+254795308101' },
-              { label: 'Email',       value: 'inquiries@arsarealestate.com',  icon: '📧', href: 'mailto:inquiries@arsarealestate.com' },
-              { label: 'New York',    value: '740 Park Avenue, Suite 12A',    icon: '📍', href: '#' },
-              { label: 'Los Angeles', value: '9200 Wilshire Blvd, Penthouse', icon: '📍', href: '#' },
+              { label: 'Email',       value: 'arsarealestates@gmail.com',  icon: '📧', href: 'arsarealestates@gmail.com' },
+              { label: 'Kenya',    value: 'Nairobi,CBD',    icon: '📍', href: '#' },
+              
             ].map((c) => (
               <div key={c.label} className="flex gap-4 items-start">
                 <span className="text-2xl mt-0.5">{c.icon}</span>
@@ -74,10 +74,9 @@ export default function Contact() {
             <p className="text-[#111827] text-xs tracking-widest uppercase font-semibold mb-4">Follow Us</p>
             <div className="flex gap-3">
               {[
-                { name: 'Facebook',  href: 'https://facebook.com',  icon: '𝐟' },
-                { name: 'Instagram', href: 'https://instagram.com', icon: '◎' },
-                { name: 'LinkedIn',  href: 'https://linkedin.com',  icon: 'in' },
-                { name: 'Twitter',   href: 'https://twitter.com',   icon: '𝕏' },
+                
+                { name: 'Instagram', href: 'https://www.instagram.com/arsarealestates?igsi=ZDNlZDc0MzIxNw==', icon: '📷 ' },
+                
               ].map((s) => (
                 <a
                   key={s.name}
@@ -121,7 +120,10 @@ export default function Contact() {
                   {errMsg}
                 </div>
               )}
-
+              <h2 className="font-display text-4xl md:text-3xl mb-8 green-line text-[#111827]">
+            Book an appiontment<br />
+            
+          </h2>
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[#333] text-xs tracking-widest uppercase mb-2 font-medium">

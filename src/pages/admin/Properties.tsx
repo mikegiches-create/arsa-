@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import {
-  propertiesApi, categoriesApi, locationsApi, agentsApi, uploadApi,
-  Property, Category, Location, Agent,
+  propertiesApi, categoriesApi, locationsApi, uploadApi,
+  Property, Category, Location,
 } from '../../services/api'
 import { useApi } from '../../hooks/useApi'
 import {
@@ -18,7 +18,7 @@ const EMPTY: Partial<Property> = {
   title: '', description: '', price: 0, type: 'APARTMENT', status: 'AVAILABLE',
   address: '', city: '', state: '', zipCode: '', country: '',
   bedrooms: 1, bathrooms: 1, squareFeet: 0, thumbnail: '', images: [],
-  categoryId: '', locationId: '', agentId: '', featured: false,
+  categoryId: '', locationId: '', featured: false,
 }
 
 // ── Small gallery upload button used inside the form ──────────────────────────
@@ -75,11 +75,9 @@ export default function Properties() {
   )
   const { data: cats }     = useApi(() => categoriesApi.list(1, 100), [])
   const { data: locs }     = useApi(() => locationsApi.list(1, 100), [])
-  const { data: agentRes } = useApi(() => agentsApi.list(1, 100), [])
 
   const categories: Category[] = cats?.data     ?? []
   const locations:  Location[] = locs?.data     ?? []
-  const agents:     Agent[]    = agentRes?.data ?? []
 
   const openAdd = () => {
     setEditing(null)
@@ -87,7 +85,6 @@ export default function Properties() {
       ...EMPTY,
       categoryId: categories[0]?.id ?? '',
       locationId: locations[0]?.id  ?? '',
-      agentId:    agents[0]?.id     ?? '',
     })
     setGallery([])
     setFormErr('')
@@ -318,12 +315,6 @@ export default function Properties() {
                 <select className={inputCls} value={form.locationId ?? ''} onChange={e => set('locationId', e.target.value)} required>
                   <option value="">Select location</option>
                   {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-                </select>
-              </Field>
-              <Field label="Agent" className="sm:col-span-2">
-                <select className={inputCls} value={form.agentId ?? ''} onChange={e => set('agentId', e.target.value)} required>
-                  <option value="">Select agent</option>
-                  {agents.map(a => <option key={a.id} value={a.id}>{a.firstName} {a.lastName}</option>)}
                 </select>
               </Field>
             </div>

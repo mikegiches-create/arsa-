@@ -130,13 +130,6 @@ npm run format      # Format with Prettier
 - `PUT /:id` - Update location (admin)
 - `DELETE /:id` - Delete location (admin)
 
-### Agents (`/api/agents`)
-- `GET /` - List agents
-- `GET /:id` - Get agent with properties
-- `POST /` - Create agent (admin)
-- `PUT /:id` - Update agent (admin)
-- `DELETE /:id` - Delete agent (admin)
-
 ### Testimonials (`/api/testimonials`)
 - `GET /` - List testimonials
 - `GET /:id` - Get testimonial

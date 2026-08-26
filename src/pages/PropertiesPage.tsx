@@ -1,10 +1,14 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { propertiesApi, categoriesApi, locationsApi, Property, Category, Location } from '../services/api'
 import { imgFallback } from '../utils/imgFallback'
+import { mapPropertyImages, getPropertyThumbnail } from '../utils/assetImageLoader'
 import fallbackImg from '../assets/DG-West-Sitting-room.webp'
 import Header from '../components/sections/Header'
 import Footer from '../components/sections/Footer'
+
+// Asset images (excluding logo and profile photos)
+
 
 // ── Enquiry modal ─────────────────────────────────────────────────────────────
 function PropertyModal({ prop, onClose }: { prop: Property; onClose: () => void }) {
@@ -105,31 +109,6 @@ function PropertyModal({ prop, onClose }: { prop: Property; onClose: () => void 
           {prop.description && (
             <p className="text-gray-600 text-sm leading-relaxed">{prop.description}</p>
           )}
-
-          {/* Agent */}
-          {prop.agent && (
-            <div className="flex items-center gap-3 border-t border-gray-100 pt-4">
-              <div className="w-10 h-10 rounded-full bg-[#2d6a4f] flex items-center justify-center text-white font-bold shrink-0">
-                {prop.agent.firstName[0]}
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-[#111827]">
-                  {prop.agent.firstName} {prop.agent.lastName}
-                </p>
-                <p className="text-xs text-gray-500">{prop.agent.phone}</p>
-              </div>
-              <a
-                href="#contact"
-                onClick={() => {
-                  onClose()
-                  setTimeout(() => document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' }), 200)
-                }}
-                className="ml-auto bg-[#2d6a4f] text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-[#1b4332] transition-colors"
-              >
-                Enquire
-              </a>
-            </div>
-          )}
         </div>
       </div>
     </div>
@@ -139,7 +118,6 @@ function PropertyModal({ prop, onClose }: { prop: Property; onClose: () => void 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function PropertiesPage() {
   const [searchParams, setSearchParams] = useSearchParams()
-
   const [properties, setProperties] = useState<Property[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [locations,  setLocations]  = useState<Location[]>([])
@@ -147,6 +125,15 @@ export default function PropertiesPage() {
   const [totalPages, setTotalPages] = useState(1)
   const [loading,    setLoading]    = useState(true)
   const [selected,   setSelected]   = useState<Property | null>(null)
+
+  // Map asset images to properties with deduplication
+  const enrichPropertiesWithAssets = useCallback((props: Property[]) => {
+    return props.map((p, idx) => ({
+      ...p,
+      thumbnail: getPropertyThumbnail(idx),
+      images: mapPropertyImages(idx),
+    }))
+  }, [])
 
   // Filter state synced with URL params
   const page       = parseInt(searchParams.get('page')  || '1')
@@ -181,12 +168,12 @@ export default function PropertiesPage() {
         maxPrice:   maxPrice   ? parseFloat(maxPrice)   : undefined,
         sortBy, sortOrder,
       })
-      setProperties(res.data)
+      setProperties(enrichPropertiesWithAssets(res.data))
       setTotal(res.pagination.total)
       setTotalPages(res.pagination.totalPages)
     } catch {}
     finally { setLoading(false) }
-  }, [page, search, categoryId, locationId, type, status, minPrice, maxPrice, sortBy, sortOrder])
+  }, [page, search, categoryId, locationId, type, status, minPrice, maxPrice, sortBy, sortOrder, enrichPropertiesWithAssets])
 
   useEffect(() => { loadProperties() }, [loadProperties])
 
@@ -426,11 +413,6 @@ export default function PropertiesPage() {
                           <span>🚿 {p.bathrooms} ba</span>
                           <span>📐 {Number(p.squareFeet).toLocaleString()} ft²</span>
                         </div>
-                        {p.agent && (
-                          <p className="text-xs text-gray-400 mt-2 truncate">
-                            Agent: {p.agent.firstName} {p.agent.lastName}
-                          </p>
-                        )}
                       </div>
                     </article>
                   ))}

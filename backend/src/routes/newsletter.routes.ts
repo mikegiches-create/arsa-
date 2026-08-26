@@ -8,6 +8,7 @@ import {
   listBlasts,
   getStats,
   testEmailConfig,
+  deleteSubscriber,
 } from '../controllers/newsletter.controller'
 import { authenticate, requireAdmin } from '../middleware/auth'
 import { validateRequest } from '../middleware/validation'
@@ -36,6 +37,16 @@ router.get(
 router.get('/subscribers', authenticate, requireAdmin, listSubscribers)
 router.get('/blasts',      authenticate, requireAdmin, listBlasts)
 router.get('/stats',       authenticate, requireAdmin, getStats)
+
+// Delete subscriber — DELETE /api/newsletter/subscribers/:id
+router.delete(
+  '/subscribers/:id',
+  authenticate,
+  requireAdmin,
+  param('id').notEmpty().withMessage('Subscriber ID is required'),
+  validateRequest,
+  deleteSubscriber
+)
 
 // Test SMTP — GET /api/newsletter/test-email?to=you@example.com
 router.get('/test-email',  authenticate, requireAdmin, testEmailConfig)

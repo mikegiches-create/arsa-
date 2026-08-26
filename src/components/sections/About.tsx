@@ -38,7 +38,7 @@ export default function About() {
           <em>Refined Living</em>
         </h2>
         <p className="text-[#333333] leading-relaxed mb-5 font-medium">
-          Founded in 2002, ARSA REALESTATE has quietly become the most trusted name in ultra-luxury
+          Founded in 2017, ARSA REALESTATE has quietly become the most trusted name in ultra-luxury
           residential real estate. We represent a select number of extraordinary properties — never
           volume, always quality.
         </p>
@@ -51,7 +51,7 @@ export default function About() {
         {/* Stats Grid */}
         <div className="grid grid-cols-2 gap-8 border-t border-gray-200 pt-10">
           {[
-            { v: '22 yrs', l: 'Established 2002' },
+            { v: '9 yrs', l: 'Established 2017' },
             { v: 'Private', l: 'By Referral Only' },
             { v: 'Global', l: 'Seven Markets' },
             { v: '100%', l: 'Client Retention' },

@@ -2,29 +2,11 @@
 
 ## Overview
 
-Seven complete CRUD (Create, Read, Update, Delete) admin modules have been created for the ARSA REALESTATE application. Each module provides a full-featured interface for managing different aspects of the platform.
+Six complete CRUD (Create, Read, Update, Delete) admin modules have been created for the ARSA REALESTATE application. Each module provides a full-featured interface for managing different aspects of the platform.
 
 ## Created Modules
 
-### 1. **Agents.tsx** 👥
-**Location:** `/src/pages/admin/Agents.tsx`
-
-**Features:**
-- Grid view of all agents with profile cards
-- Display: Name, Title, Properties Sold, Rating, Phone
-- Add new agents with form validation
-- Edit existing agent information
-- Delete agents with confirmation modal
-- Rating system with star display (0-5 stars)
-- Responsive design with hover effects
-
-**Data Model:** `Agent` interface with properties:
-- id, name, title, properties (count), image URL, phone, rating (0-5)
-- createdAt, updatedAt timestamps
-
----
-
-### 2. **Users.tsx** 👨‍💼
+### 1. **Users.tsx** 👨‍💼
 **Location:** `/src/pages/admin/Users.tsx`
 
 **Features:**
@@ -43,7 +25,7 @@ Seven complete CRUD (Create, Read, Update, Delete) admin modules have been creat
 
 ---
 
-### 3. **Testimonials.tsx** ⭐
+### 2. **Testimonials.tsx** ⭐
 **Location:** `/src/pages/admin/Testimonials.tsx`
 
 **Features:**
@@ -62,7 +44,7 @@ Seven complete CRUD (Create, Read, Update, Delete) admin modules have been creat
 
 ---
 
-### 4. **Blog.tsx** 📝
+### 3. **Blog.tsx** 📝
 **Location:** `/src/pages/admin/Blog.tsx`
 
 **Features:**
@@ -81,7 +63,7 @@ Seven complete CRUD (Create, Read, Update, Delete) admin modules have been creat
 
 ---
 
-### 5. **Messages.tsx** 💬
+### 4. **Messages.tsx** 💬
 **Location:** `/src/pages/admin/Messages.tsx`
 
 **Features:**
@@ -101,7 +83,7 @@ Seven complete CRUD (Create, Read, Update, Delete) admin modules have been creat
 
 ---
 
-### 6. **Settings.tsx** ⚙️
+### 5. **Settings.tsx** ⚙️
 **Location:** `/src/pages/admin/Settings.tsx`
 
 **Features:**
@@ -123,7 +105,7 @@ Seven complete CRUD (Create, Read, Update, Delete) admin modules have been creat
 
 ---
 
-### 7. **Media.tsx** 🖼️
+### 6. **Media.tsx** 🖼️
 **Location:** `/src/pages/admin/Media.tsx`
 
 **Features:**
@@ -195,16 +177,16 @@ Modules pull initial data from:
 The `AdminLayout.tsx` includes navigation menu items for all modules:
 
 ```typescript
-const ADMIN_MENU = [
-  { label: 'Dashboard', icon: '📊', href: '/admin/dashboard' },
-  { label: 'Properties', icon: '🏠', href: '/admin/properties' },
-  { label: 'Agents', icon: '👥', href: '/admin/agents' },
-  { label: 'Users', icon: '👨', href: '/admin/users' },
-  { label: 'Testimonials', icon: '⭐', href: '/admin/testimonials' },
-  { label: 'Blog', icon: '📝', href: '/admin/blog' },
-  { label: 'Messages', icon: '💬', href: '/admin/messages' },
-  { label: 'Media', icon: '🖼️', href: '/admin/media' },
-  { label: 'Settings', icon: '⚙️', href: '/admin/settings' },
+const NAV = [
+  { label: 'Dashboard', icon: '◈',  href: '/admin/dashboard' },
+  { label: 'Properties', icon: '⌂',  href: '/admin/properties' },
+  { label: 'Categories', icon: '⊞',  href: '/admin/categories' },
+  { label: 'Locations', icon: '◎',   href: '/admin/locations' },
+  { label: 'Users', icon: '◑',       href: '/admin/users' },
+  { label: 'Testimonials', icon: '★', href: '/admin/testimonials' },
+  { label: 'Messages', icon: '✉',    href: '/admin/messages' },
+  { label: 'Newsletter', icon: '📧', href: '/admin/newsletter' },
+  { label: 'Settings', icon: '⚙',   href: '/admin/settings' },
 ]
 ```
 
@@ -234,7 +216,6 @@ All modules implement consistent delete confirmation pattern:
 
 | Module | List View | Add | Edit | Delete | Search | Filter |
 |--------|-----------|-----|------|--------|--------|--------|
-| Agents | Grid | ✅ | ✅ | ✅ | - | - |
 | Users | Table | ✅ | ✅ | ✅ | - | - |
 | Testimonials | Grid Cards | ✅ | ✅ | ✅ | - | - |
 | Blog | List | ✅ | ✅ | ✅ | - | Category |
@@ -251,7 +232,6 @@ All modules implement consistent delete confirmation pattern:
 1. **Ensure React Router is configured** in your main routing setup with routes for each admin module
 2. **Import modules** in your routing configuration:
    ```typescript
-   import Agents from './pages/admin/Agents'
    import Users from './pages/admin/Users'
    import Testimonials from './pages/admin/Testimonials'
    import Blog from './pages/admin/Blog'
@@ -266,7 +246,6 @@ All modules implement consistent delete confirmation pattern:
 ### Example route configuration:
 ```typescript
 <Route path="/admin" element={<AdminLayout />}>
-  <Route path="agents" element={<Agents />} />
   <Route path="users" element={<Users />} />
   <Route path="testimonials" element={<Testimonials />} />
   <Route path="blog" element={<Blog />} />

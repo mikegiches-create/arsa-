@@ -1,13 +1,62 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { STATISTICS } from '../data/constants'
 import { imgFallback } from '../../utils/imgFallback'
 import heroBg from '../../assets/DG-West-Reception-scaled.webp'
+import { properties as staticProperties } from '../data/properties'
+import { propertiesApi } from '../../services/api'
+import { getPropertyThumbnail } from '../../utils/assetImageLoader'
 
 export default function Hero() {
   const [searchType, setSearchType]         = useState<'buy' | 'rent'>('buy')
   const [searchLocation, setSearchLocation] = useState('')
   const [searchPrice, setSearchPrice]       = useState('')
   const [searchPropType, setSearchPropType] = useState('')
+  const [currentBgIdx, setCurrentBgIdx]     = useState(0)
+  const [bgImages, setBgImages]             = useState<string[]>([heroBg])
+
+  // Build hero images: current hero first, then property images
+  useEffect(() => {
+    const loadImages = async () => {
+      try {
+        const res = await propertiesApi.list({ limit: 10 })
+        if (res.data?.length) {
+          const propertyImgs = res.data
+            .map((_, i) => getPropertyThumbnail(i))
+            .filter((img, idx, arr) => arr.indexOf(img) === idx && img !== heroBg)
+            .slice(0, 5)
+          setBgImages([heroBg, ...propertyImgs])
+        }
+      } catch {
+        // Fallback: use static properties
+        const staticImgs = staticProperties
+          .map(p => p.img)
+          .filter((img, idx, arr) => arr.indexOf(img) === idx && img !== heroBg)
+          .slice(0, 5)
+        setBgImages([heroBg, ...staticImgs])
+      }
+    }
+    loadImages()
+  }, [])
+
+  // Auto-rotate every 2 seconds
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentBgIdx(prev => (prev + 1) % bgImages.length)
+    }, 2000)
+    return () => clearInterval(timer)
+  }, [bgImages.length])
+
+  const next = useCallback(() => {
+    setCurrentBgIdx(prev => (prev + 1) % bgImages.length)
+  }, [bgImages.length])
+
+  const prev = useCallback(() => {
+    setCurrentBgIdx(prev => (prev - 1 + bgImages.length) % bgImages.length)
+  }, [bgImages.length])
+
+  const goToSlide = useCallback((idx: number) => {
+    setCurrentBgIdx(idx)
+  }, [])
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
@@ -28,15 +77,24 @@ export default function Hero() {
 
   return (
     <section className="relative min-h-screen flex items-end pb-20 sm:pb-24 overflow-hidden mt-20">
-      {/* Background Image */}
+      {/* Background Carousel */}
       <div className="absolute inset-0">
-        <img
-          src={heroBg}
-          alt="Luxury estate exterior"
-          className="w-full h-full object-cover"
-          onError={imgFallback}
-          loading="eager"
-        />
+        {bgImages.map((img, idx) => (
+          <div
+            key={idx}
+            className={`absolute inset-0 transition-opacity duration-1000 ${
+              idx === currentBgIdx ? 'opacity-100' : 'opacity-0'
+            }`}
+          >
+            <img
+              src={img}
+              alt="Hero background"
+              className="w-full h-full object-cover"
+              onError={imgFallback}
+              loading={idx === 0 ? 'eager' : 'lazy'}
+            />
+          </div>
+        ))}
         <div
           className="absolute inset-0"
           style={{
@@ -45,6 +103,42 @@ export default function Hero() {
           }}
         />
       </div>
+
+      {/* Navigation Arrows */}
+      {bgImages.length > 1 && (
+        <>
+          <button
+            onClick={prev}
+            className="absolute left-4 sm:left-6 top-1/2 -translate-y-1/2 z-20 w-10 h-10 sm:w-12 sm:h-12 bg-white/20 hover:bg-white/40 rounded-full flex items-center justify-center text-white transition-colors"
+            aria-label="Previous slide"
+          >
+            ←
+          </button>
+          <button
+            onClick={next}
+            className="absolute right-4 sm:right-6 top-1/2 -translate-y-1/2 z-20 w-10 h-10 sm:w-12 sm:h-12 bg-white/20 hover:bg-white/40 rounded-full flex items-center justify-center text-white transition-colors"
+            aria-label="Next slide"
+          >
+            →
+          </button>
+
+          {/* Pagination Dots */}
+          <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-20 flex gap-2">
+            {bgImages.map((_, idx) => (
+              <button
+                key={idx}
+                onClick={() => goToSlide(idx)}
+                className={`transition-all rounded-full ${
+                  idx === currentBgIdx
+                    ? 'bg-[#40916c] w-3 h-3'
+                    : 'bg-white/40 w-2 h-2 hover:bg-white/60'
+                }`}
+                aria-label={`Go to slide ${idx + 1}`}
+              />
+            ))}
+          </div>
+        </>
+      )}
 
       {/* Content */}
       <div className="relative z-10 px-6 md:px-16 max-w-5xl w-full">

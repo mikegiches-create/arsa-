@@ -338,3 +338,37 @@ export const getStats = async (req: AuthRequest, res: Response): Promise<void> =
     res.status(500).json({ success: false, message: 'Failed to get stats' })
   }
 }
+
+// ── Delete subscriber (admin only) ────────────────────────────────────────────
+
+export const deleteSubscriber = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    if (req.user?.role !== 'ADMIN') throw new AuthorizationError('Admins only')
+
+    const { id } = req.params
+    if (!id) throw new ValidationError('Subscriber ID is required')
+
+    const subscriber = await queryOne<any>(
+      'SELECT id, email FROM newsletter_subscribers WHERE id = ?',
+      [id]
+    )
+
+    if (!subscriber) throw new NotFoundError('Subscriber not found')
+
+    await execute('DELETE FROM newsletter_subscribers WHERE id = ?', [id])
+
+    logger.info(`[NEWSLETTER] Admin deleted subscriber: ${subscriber.email}`)
+    sendSuccess(res, { email: subscriber.email }, 'Subscriber deleted successfully')
+  } catch (error) {
+    logger.error('Delete subscriber error:', error)
+    if (error instanceof AuthorizationError) {
+      res.status(error.statusCode).json({ success: false, message: error.message })
+    } else if (error instanceof NotFoundError) {
+      res.status(404).json({ success: false, message: error.message })
+    } else if (error instanceof ValidationError) {
+      res.status(400).json({ success: false, message: error.message })
+    } else {
+      res.status(500).json({ success: false, message: 'Failed to delete subscriber' })
+    }
+  }
+}

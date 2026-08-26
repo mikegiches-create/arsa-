@@ -121,7 +121,7 @@ export default function Contact() {
                 </div>
               )}
               <h2 className="font-display text-4xl md:text-3xl mb-8 green-line text-[#111827]">
-            Book an appiontment<br />
+            Book an appiontment !!<br />
             
           </h2>
               <div className="grid sm:grid-cols-2 gap-4">

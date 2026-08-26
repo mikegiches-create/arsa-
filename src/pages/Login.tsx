@@ -110,27 +110,7 @@ export default function Login() {
             </button>
           </form>
 
-          <div className="mt-6 pt-5 border-t border-gray-200">
-            <p className="text-xs text-gray-500 text-center mb-3 font-medium uppercase tracking-wide">
-              Quick Demo
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() => quickLogin('admin')}
-                disabled={loading}
-                className="py-2 border-2 border-[#2d6a4f] text-[#2d6a4f] text-sm font-semibold rounded-lg hover:bg-[#2d6a4f]/10 transition-colors disabled:opacity-50"
-              >
-                Admin
-              </button>
-              <button
-                onClick={() => quickLogin('user')}
-                disabled={loading}
-                className="py-2 border-2 border-[#2d6a4f] text-[#2d6a4f] text-sm font-semibold rounded-lg hover:bg-[#2d6a4f]/10 transition-colors disabled:opacity-50"
-              >
-                User
-              </button>
-            </div>
-          </div>
+          
 
           <div className="mt-5 text-center">
             <Link to="/" className="text-sm text-[#2d6a4f] hover:text-[#1b4332] font-semibold">

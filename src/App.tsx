@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
+import WhatsAppButton from './components/sections/WhatsAppButton'
 
 // Public pages
 import Login        from './pages/Login'
@@ -25,6 +26,7 @@ export default function App() {
   return (
     <Router>
       <AuthProvider>
+        <WhatsAppButton />
         <Routes>
           {/* Public */}
           <Route path="/"           element={<HomePage />} />
